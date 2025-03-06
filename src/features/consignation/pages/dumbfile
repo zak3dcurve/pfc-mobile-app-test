@@ -1,0 +1,424 @@
+import { useRef, useState, useEffect } from "react";
+import SignaturePad from "signature_pad";
+import { supabase } from "@/features/auth/utils/supabase-client";
+import { useNavigate } from "react-router-dom";
+import CreatableSelect from "react-select/creatable";
+
+// Helper function to get formatted local datetime
+const getFormattedLocal = () => {
+  const now = new Date();
+  const pad = (n) => String(n).padStart(2, "0");
+  const year = now.getFullYear();
+  const month = pad(now.getMonth() + 1);
+  const day = pad(now.getDate());
+  const hours = pad(now.getHours());
+  const minutes = pad(now.getMinutes());
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+};
+
+const DeconsignationPage = () => {
+  const navigate = useNavigate();
+
+  // Minimal form data
+  const [formData, setFormData] = useState({
+    date_consignation: getFormattedLocal(),
+    signature_demandeur: "",
+    signature_consignateur: "",
+    consigne_pour_moi: false,
+    info_salle_controle: false,
+    status: "pending",
+  });
+
+  // Option arrays (we only fetch enterprises, which include persons)
+  const [entreprises, setEntreprises] = useState([]);
+  const [entreprisePersons, setEntreprisePersons] = useState([]);
+
+  // Selected values
+  const [selectedEntreprise, setSelectedEntreprise] = useState(null);
+  const [selectedDemandeur, setSelectedDemandeur] = useState(null);
+  const [selectedConsignateur, setSelectedConsignateur] = useState(null);
+
+  // Step control and errors
+  const [currentStep, setCurrentStep] = useState(1);
+  const [errors, setErrors] = useState({});
+
+  // Signature pad refs
+  const sigPadDemandeur = useRef(null);
+  const sigPadConsignateur = useRef(null);
+  const signaturePadDemandeur = useRef(null);
+  const signaturePadConsignateur = useRef(null);
+
+  // Fetch enterprises from Supabase
+  useEffect(() => {
+    const fetchData = async () => {
+      const { data, error } = await supabase
+        .from("entreprises")
+        .select("id, name, persons(id, name)");
+      if (error) {
+        console.error("Error fetching enterprises:", error);
+      } else {
+        setEntreprises(
+          (data || []).map((ent) => ({
+            value: ent.id,
+            label: ent.name,
+            persons: ent.persons,
+          }))
+        );
+      }
+    };
+    fetchData();
+  }, []);
+
+  // When an enterprise is selected, update the list of its persons
+  useEffect(() => {
+    if (selectedEntreprise) {
+      const enterprise = entreprises.find(
+        (ent) => ent.value === selectedEntreprise.value
+      );
+      if (enterprise && enterprise.persons) {
+        setEntreprisePersons(
+          enterprise.persons.map((p) => ({ value: p.id, label: p.name }))
+        );
+      } else {
+        setEntreprisePersons([]);
+      }
+    } else {
+      setEntreprisePersons([]);
+    }
+  }, [selectedEntreprise, entreprises]);
+
+  // Initialize signature pads for each step
+  useEffect(() => {
+    if (currentStep === 1 && sigPadDemandeur.current) {
+      const canvas = sigPadDemandeur.current;
+      const ratio = Math.max(window.devicePixelRatio || 1, 1);
+      canvas.width = canvas.offsetWidth * ratio;
+      canvas.height = canvas.offsetHeight * ratio;
+      canvas.getContext("2d").scale(ratio, ratio);
+      signaturePadDemandeur.current = new SignaturePad(canvas, {
+        minWidth: 1,
+        maxWidth: 3,
+        penColor: "black",
+      });
+    }
+    if (currentStep === 2 && sigPadConsignateur.current) {
+      const canvas = sigPadConsignateur.current;
+      const ratio = Math.max(window.devicePixelRatio || 1, 1);
+      canvas.width = canvas.offsetWidth * ratio;
+      canvas.height = canvas.offsetHeight * ratio;
+      canvas.getContext("2d").scale(ratio, ratio);
+      signaturePadConsignateur.current = new SignaturePad(canvas, {
+        minWidth: 1,
+        maxWidth: 3,
+        penColor: "black",
+      });
+    }
+  }, [currentStep]);
+
+  // Clear signature handlers
+  const clearSignatureDemandeur = () => {
+    signaturePadDemandeur.current && signaturePadDemandeur.current.clear();
+  };
+  const clearSignatureConsignateur = () => {
+    signaturePadConsignateur.current && signaturePadConsignateur.current.clear();
+  };
+
+  // Input change handler (for checkboxes)
+  const handleChange = (e) => {
+    const { name, value, type, checked } = e.target;
+    setFormData((prev) => ({
+      ...prev,
+      [name]: type === "checkbox" ? checked : value,
+    }));
+  };
+
+  // Validate fields for each step
+  const validateStep = (step) => {
+    let newErrors = {};
+    if (step === 1) {
+      if (!selectedEntreprise)
+        newErrors.entreprise_id = ["Enterprise is required"];
+      if (!selectedDemandeur)
+        newErrors.demandeur_id = ["Demandeur is required"];
+      if (
+        !signaturePadDemandeur.current ||
+        signaturePadDemandeur.current.isEmpty()
+      ) {
+        newErrors.signature_demandeur = ["Signature is required"];
+      }
+    } else if (step === 2) {
+      if (!selectedEntreprise)
+        newErrors.entreprise_id = ["Enterprise is required"];
+      if (!selectedConsignateur)
+        newErrors.consignateur_id = ["Consignateur is required"];
+      if (
+        !signaturePadConsignateur.current ||
+        signaturePadConsignateur.current.isEmpty()
+      ) {
+        newErrors.signature_consignateur = ["Signature is required"];
+      }
+    }
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  // Step navigation handlers
+  const handleNextStep = () => {
+    if (validateStep(currentStep)) {
+      setCurrentStep((prev) => prev + 1);
+    }
+  };
+  const handlePreviousStep = () => {
+    setCurrentStep((prev) => prev - 1);
+  };
+
+  // Final submission handler
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!validateStep(currentStep)) return;
+    const updatedFormData = {
+      ...formData,
+      entreprise_id: selectedEntreprise ? selectedEntreprise.value : "",
+      demandeur_id: selectedDemandeur ? selectedDemandeur.value : "",
+      consignateur_id: selectedConsignateur ? selectedConsignateur.value : "",
+      signature_demandeur:
+        signaturePadDemandeur.current &&
+        !signaturePadDemandeur.current.isEmpty()
+          ? signaturePadDemandeur.current.toDataURL()
+          : "",
+      signature_consignateur:
+        signaturePadConsignateur.current &&
+        !signaturePadConsignateur.current.isEmpty()
+          ? signaturePadConsignateur.current.toDataURL()
+          : "",
+    };
+    const { data, error } = await supabase
+      .from("consignations")
+      .insert([updatedFormData])
+      .select();
+    if (error) {
+      console.error("Error inserting consignation:", error);
+      return;
+    }
+    console.log("Consignation inserted successfully!");
+    navigate("/consignationlist");
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
+      <form
+        onSubmit={handleSubmit}
+        className="w-full max-w-4xl space-y-12 bg-white p-6 shadow-md rounded-lg"
+      >
+        {/* Step 1 – DEMANDEUR DE LA DÉCONSIGNATION */}
+        {currentStep === 1 && (
+          <div className="border-b border-gray-900/10 pb-12">
+            <div className="flex justify-center">
+              <h2 className="text-xl font-bold">DEMANDEUR DE LA DÉCONSIGNATION</h2>
+            </div>
+            <div className="mt-8 grid grid-cols-1 gap-y-6 sm:grid-cols-2">
+              <div>
+                <label className="block text-sm font-medium text-gray-900">
+                  Entreprise
+                </label>
+                <CreatableSelect
+                  value={selectedEntreprise}
+                  onChange={(value) => setSelectedEntreprise(value)}
+                  options={entreprises}
+                  placeholder="Select enterprise..."
+                  isClearable
+                  className="mt-2"
+                />
+                {errors.entreprise_id && (
+                  <p className="mt-2 text-sm text-red-600">
+                    {errors.entreprise_id.join(", ")}
+                  </p>
+                )}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-900">
+                  Demandeur
+                </label>
+                <CreatableSelect
+                  value={selectedDemandeur}
+                  onChange={(value) => setSelectedDemandeur(value)}
+                  options={entreprisePersons}
+                  placeholder="Select demandeur..."
+                  isClearable
+                  className="mt-2"
+                />
+                {errors.demandeur_id && (
+                  <p className="mt-2 text-sm text-red-600">
+                    {errors.demandeur_id.join(", ")}
+                  </p>
+                )}
+              </div>
+            </div>
+            <div className="mt-8 flex flex-col items-center">
+              <label className="block text-sm font-medium text-gray-900 mb-2">
+                Signature Demandeur
+              </label>
+              <canvas
+                ref={sigPadDemandeur}
+                className="border rounded w-80 h-40"
+              ></canvas>
+              <button
+                type="button"
+                onClick={clearSignatureDemandeur}
+                className="mt-4 rounded-md bg-indigo-600 px-4 py-2 text-sm text-white"
+              >
+                Clear Signature
+              </button>
+              <div className="mr-auto ml-10 mt-10">
+              <div className="pr-10">
+                <input
+                  type="checkbox"
+                  name="consigne_pour_moi"
+                  checked={formData.consigne_pour_moi}
+                  onChange={handleChange}
+                  className="mr-2 h-4 w-4 rounded border-gray-300 text-indigo-600"
+                />
+                <span className="text-sm font-medium text-gray-900">
+                JE DÉCLARE QUE LES TRAVAUX OBJET DE LA PRÉSENTE CONSIGNATION ONT ÉTÉ ACHEVÉS. EN CONSÉQUENCE DE QUOI L’OUVRAGE REMIS EN BON ORDRE PEUT ÊTRE DÉCONSIGNÉ
+                </span>
+              </div>
+        
+            </div>
+              {errors.signature_demandeur && (
+                <p className="mt-2 text-sm text-red-600">
+                  {errors.signature_demandeur.join(", ")}
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Step 2 – EXÉCUTEUR DE LA DÉCONSIGNATION */}
+        {currentStep === 2 && (
+          <div className="border-b border-gray-900/10 pb-12">
+            <div className="flex justify-center">
+              <h2 className="text-xl font-bold">EXÉCUTEUR DE LA DÉCONSIGNATION</h2>
+            </div>
+            <div className="mt-8 grid grid-cols-1 gap-y-6 sm:grid-cols-2">
+              <div>
+                <label className="block text-sm font-medium text-gray-900">
+                  Entreprise
+                </label>
+                <CreatableSelect
+                  value={selectedEntreprise}
+                  onChange={(value) => setSelectedEntreprise(value)}
+                  options={entreprises}
+                  placeholder="Select enterprise..."
+                  isClearable
+                  className="mt-2"
+                />
+                {errors.entreprise_id && (
+                  <p className="mt-2 text-sm text-red-600">
+                    {errors.entreprise_id.join(", ")}
+                  </p>
+                )}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-900">
+                  Consignateur
+                </label>
+                <CreatableSelect
+                  value={selectedConsignateur}
+                  onChange={(value) => setSelectedConsignateur(value)}
+                  options={entreprisePersons}
+                  placeholder="Select consignateur..."
+                  isClearable
+                  className="mt-2"
+                />
+                {errors.consignateur_id && (
+                  <p className="mt-2 text-sm text-red-600">
+                    {errors.consignateur_id.join(", ")}
+                  </p>
+                )}
+              </div>
+            </div>
+            <div className="mt-8 flex flex-col items-center">
+              <label className="block text-sm font-medium text-gray-900 mb-2">
+                Signature Consignateur
+              </label>
+              <canvas
+                ref={sigPadConsignateur}
+                className="border rounded w-80 h-40"
+              ></canvas>
+              <button
+                type="button"
+                onClick={clearSignatureConsignateur}
+                className="mt-4 rounded-md bg-indigo-600 px-4 py-2 text-sm text-white"
+              >
+                Clear Signature
+              </button>
+              {errors.signature_consignateur && (
+                <p className="mt-2 text-sm text-red-600">
+                  {errors.signature_consignateur.join(", ")}
+                </p>
+              )}
+            </div>
+            <div className="mt-6 grid grid-cols-2 gap-4">
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  name="consigne_pour_moi"
+                  checked={formData.consigne_pour_moi}
+                  onChange={handleChange}
+                  className="mr-2 h-4 w-4 rounded border-gray-300 text-indigo-600"
+                />
+                <span className="text-sm font-medium text-gray-900">
+                  Consigné pour moi-même
+                </span>
+              </div>
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  name="info_salle_controle"
+                  checked={formData.info_salle_controle}
+                  onChange={handleChange}
+                  className="mr-2 h-4 w-4 rounded border-gray-300 text-indigo-600"
+                />
+                <span className="text-sm font-medium text-gray-900">
+                  Informé la salle de contrôle
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Navigation Buttons */}
+        <div className="flex justify-end space-x-4">
+          {currentStep > 1 && (
+            <button
+              type="button"
+              onClick={handlePreviousStep}
+              className="rounded-md bg-gray-200 px-4 py-2 text-sm font-semibold text-gray-900"
+            >
+              Previous
+            </button>
+          )}
+          {currentStep < 2 && (
+            <button
+              type="button"
+              onClick={handleNextStep}
+              className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white"
+            >
+              Next
+            </button>
+          )}
+          {currentStep === 2 && (
+            <button
+              type="submit"
+              className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white"
+            >
+              Submit
+            </button>
+          )}
+        </div>
+      </form>
+    </div>
+  );
+};
+
+export default DeconsignationPage;
