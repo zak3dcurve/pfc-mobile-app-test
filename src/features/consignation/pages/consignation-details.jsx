@@ -108,6 +108,7 @@ useEffect(() => {
         .eq("id", id)
         .single();
       if (error) {
+        /**COMMENT TEST GITHUB */
         console.error("Erreur lors de la récupération des détails de consignation :", error);
       } else {
         console.log("Données récupérées :", data);
