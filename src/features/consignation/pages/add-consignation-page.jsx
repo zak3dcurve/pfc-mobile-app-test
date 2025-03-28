@@ -84,7 +84,14 @@ const AddConsignation = () => {
   const signaturePadConsignateur = useRef(null);
   const signaturePadDemandeur = useRef(null);
   const signaturePadAttestation = useRef(null);
+  
 
+
+  const [showTimeDialog, setShowTimeDialog] = useState(false);
+const [datetimeValue, setDatetimeValue] = useState(getFormattedLocal());
+
+
+const [consigne_pour_ee, setConsignePourEE] = useState(true);
   // Récupérer les options depuis Supabase
   useEffect(() => {
     const fetchData = async () => {
@@ -445,7 +452,7 @@ if (selectedDemandeur && selectedDemandeur.__isNew__) {
     };
 
     // Retirer le champ types_consignation si non utilisé
-    const { types_consignation, ...dataToInsert } = updatedFormData;
+    const { types_consignation, consigne_pour_ee, ...dataToInsert } = updatedFormData;
 
     const { data, error } = await supabase.from("consignations").insert([dataToInsert]).select();
     if (error) {
@@ -495,179 +502,365 @@ if (selectedDemandeur && selectedDemandeur.__isNew__) {
     }
   };
 
+
+
+
+
+
+
+  //*planified handler  *********************************************************************************************************//
+
+
+
+  const handlePlanifiedClick = (e) => {
+    e.preventDefault();
+    // Minimal validation – adjust as needed:
+    if (!selectedSite || !selectedZone || !selectedEntreprise) {
+      // Optionally set error messages here
+      return;
+    }
+    setShowTimeDialog(true);
+  };
+  const handleDatetimeConfirm = async () => {
+    const newDatetime = datetimeValue; // get the selected full datetime
+    // Update state (this update is async)
+    setFormData((prev) => ({ ...prev, date_consignation: newDatetime }));
+    setShowTimeDialog(false);
+    // Instead of relying on formData, pass newDatetime directly
+    await submitPlanified(newDatetime);
+    navigate("/consignationplanified");
+  };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  const submitPlanified = async (newDatetime) => {
+    // Validate only the minimal required fields
+    let newErrors = {};
+    if (!selectedSite) newErrors.site_id = ["Le site est requis"];
+    if (!selectedZone) newErrors.zone_id = ["La zone est requis"];
+    if (!selectedEntreprise) newErrors.entreprise_id = ["L'entreprise est requise"];
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      return;
+    }
+    
+    // Use the passed datetime if provided; otherwise, use formData.date_consignation
+    const finalDate = newDatetime || formData.date_consignation;
+    
+    // Process the site
+    let finalSite = selectedSite;
+    if (selectedSite && selectedSite.__isNew__) {
+      const { data, error } = await supabase
+        .from("sites")
+        .insert({ name: selectedSite.label })
+        .select();
+      if (error) console.error("Erreur lors de l'insertion du nouveau site :", error);
+      else {
+        finalSite = { value: Number(data[0].id), label: data[0].name };
+        setSites((prev) => [...prev, finalSite]);
+      }
+    }
+    
+    // Process the zone
+    let finalZone = selectedZone;
+    if (selectedZone && selectedZone.__isNew__) {
+      const { data, error } = await supabase
+        .from("zones")
+        .insert({ name: selectedZone.label, site_id: selectedSite ? Number(selectedSite.value) : null })
+        .select();
+      if (error) console.error("Erreur lors de l'insertion de la nouvelle zone :", error);
+      else {
+        finalZone = { value: Number(data[0].id), label: data[0].name };
+        setZones((prev) => [...prev, finalZone]);
+      }
+    }
+    
+    // Process the consignateur
+    let finalConsignateur = selectedConsignateur;
+    if (selectedConsignateur && selectedConsignateur.__isNew__) {
+      const newPerson = { name: selectedConsignateur.label };
+      if (selectedEntrepriseUtilisatrice) {
+        newPerson.entreprise_id = Number(selectedEntrepriseUtilisatrice.value);
+      }
+      const { data, error } = await supabase.from("persons").insert(newPerson).select();
+      if (error) console.error("Erreur lors de l'insertion du nouveau consignateur :", error);
+      else {
+        finalConsignateur = { value: Number(data[0].id), label: data[0].name };
+        setConsignateurs((prev) => [...prev, finalConsignateur]);
+      }
+    }
+    
+    // Process the entreprise (from step 3)
+    let finalEntreprise = selectedEntreprise;
+    if (selectedEntreprise && selectedEntreprise.__isNew__) {
+      const { data, error } = await supabase.from("entreprises").insert({ name: selectedEntreprise.label }).select();
+      if (error) console.error("Erreur lors de l'insertion de la nouvelle entreprise :", error);
+      else {
+        finalEntreprise = { value: Number(data[0].id), label: data[0].name };
+        setEntreprises((prev) => [...prev, finalEntreprise]);
+      }
+    }
+    
+    // Process the demandeur (which depends on the entreprise)
+    let finalDemandeur = selectedDemandeur;
+    if (selectedDemandeur && selectedDemandeur.__isNew__) {
+      const newPerson = { name: selectedDemandeur.label };
+      if (finalEntreprise) {
+        newPerson.entreprise_id = Number(finalEntreprise.value);
+      }
+      const { data, error } = await supabase.from("persons").insert(newPerson).select();
+      if (error) console.error("Erreur lors de l'insertion du nouveau demandeur :", error);
+      else {
+        finalDemandeur = { value: Number(data[0].id), label: data[0].name };
+        setDemandeurs((prev) => [...prev, finalDemandeur]);
+      }
+    }
+    
+    // Build the payload (omitting demandeur fields) and force status to "planified"
+    const updatedFormData = {
+      ...formData,
+      date_consignation: finalDate, // Use the finalDate from above
+      entreprise_utilisatrice_id: selectedEntrepriseUtilisatrice ? Number(selectedEntrepriseUtilisatrice.value) : "",
+      site_id: finalSite ? Number(finalSite.value) : "",
+      zone_id: finalZone ? Number(finalZone.value) : "",
+      consignateur_id: finalConsignateur ? Number(finalConsignateur.value) : "",
+      entreprise_id: finalEntreprise ? Number(finalEntreprise.value) : "",
+      signature_consignateur:
+        signaturePadConsignateur.current && !signaturePadConsignateur.current.isEmpty()
+          ? signaturePadConsignateur.current.toDataURL()
+          : "",
+      // Omit demandeur fields
+      signature_demandeur: "",
+      signature_attestation:
+        signaturePadAttestation.current && !signaturePadAttestation.current.isEmpty()
+          ? signaturePadAttestation.current.toDataURL()
+          : "",
+      status: "planified",
+      created_by: user.id,
+      updated_by: user.id,
+    };
+    
+    const { types_consignation , consigne_pour_ee , ...dataToInsert } = updatedFormData;
+    const { data, error } = await supabase.from("consignations").insert([dataToInsert]).select();
+    if (error) {
+      console.error("Erreur lors de l'insertion de la consignation planifiée :", error);
+      return;
+    }
+    console.log("Consignation planifiée insérée avec succès !", dataToInsert);
+    navigate("/consignationplanified");
+    
+    // (Optional) Process types_consignations if needed.
+  };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   return (
     <>
       {/* <Navbar /> peut être activé si nécessaire */}
       <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
-        <form onSubmit={handleSubmit} className="w-full max-w-4xl space-y-12 bg-white p-6 shadow-md rounded-lg">
-          {/* Étape 1 – Détails du site et des travaux */}
-          {currentStep === 1 && (
-            <div className="border-b border-gray-900/10 pb-12">
-              <h2 className="text-base font-semibold text-gray-900">Formulaire de consignation</h2>
-              <p className="mt-1 text-sm text-gray-600">Fournissez les détails du site et des travaux.</p>
-              <div className="mt-10 grid grid-cols-1 gap-x-6 gap-y-8 sm:grid-cols-6">
-                {/* Site */}
-                {role === "technicien" ? (
-                  <></>
-                ) : (
-                  <div className="sm:col-span-3">
-                    <label htmlFor="site_id" className="block text-sm font-medium text-gray-900">
-                      Site
-                    </label>
-                    <CreatableSelect
-                      id="site_id"
-                      name="site_id"
-                      value={selectedSite}
-                      onChange={(value) => setSelectedSite(value)}
-                      options={sites}
-                      isClearable
-                      placeholder="Sélectionnez ou créez un site..."
-                      className="mt-2"
-                    />
-                    {errors.site_id && (
-                      <p className="mt-2 text-sm text-red-600">{errors.site_id.join(", ")}</p>
-                    )}
-                  </div>
-                )}
-                {/* Zone */}
-                <div className="sm:col-span-3">
-                  <label htmlFor="zone_id" className="block text-sm font-medium text-gray-900">
-                    Zone
-                  </label>
-                  <CreatableSelect
-                    id="zone_id"
-                    name="zone_id"
-                    value={selectedZone}
-                    onChange={(value) => setSelectedZone(value)}
-                    options={siteZones}
-                    isClearable
-                    placeholder="Sélectionnez ou créez une zone..."
-                    className="mt-2"
-                  />
-                  {errors.zone_id && (
-                    <p className="mt-2 text-sm text-red-600">{errors.zone_id.join(", ")}</p>
-                  )}
-                </div>
-                {/* Type de consignation */}
-                <div className="sm:col-span-6">
-                  <label htmlFor="type_consignation" className="block text-sm font-medium text-gray-900">
-                    Type de consignation
-                  </label>
-                  <Select
-                    id="type_consignation"
-                    name="type_consignation"
-                    isMulti
-                    options={types_consignations}
-                    value={types_consignations.filter((option) =>
-                      formData.types_consignation.includes(option.value)
-                    )}
-                    onChange={(selectedOptions) => {
-                      const selectedValues = selectedOptions
-                        ? selectedOptions.map((opt) => opt.value)
-                        : [];
-                      setFormData((prev) => ({
-                        ...prev,
-                        types_consignation: selectedValues,
-                      }));
-                      setSelectedTypesconsignations(selectedValues);
-                    }}
-                    placeholder="Sélectionnez des types..."
-                    className="mt-2"
-                  />
-                  {errors.types_consignation_id && (
-                    <p className="mt-2 text-sm text-red-600">{errors.types_consignation_id.join(", ")}</p>
-                  )}
-                </div>
-                {/* Désignation des Travaux */}
-                <div className="sm:col-span-2">
-                  <label htmlFor="designation_travaux" className="block text-sm font-medium text-gray-900">
-                    Désignation des Travaux
-                  </label>
-                  <textarea
-                    id="designation_travaux"
-                    name="designation_travaux"
-                    value={formData.designation_travaux}
-                    onChange={handleChange}
-                    className="mt-2 block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline outline-1 outline-gray-300 placeholder:text-gray-400 focus:outline-2 focus:outline-indigo-600"
-                  ></textarea>
-                  {errors.designation_travaux && (
-                    <p className="mt-2 text-sm text-red-600">{errors.designation_travaux.join(", ")}</p>
-                  )}
-                </div>
-                {/* Équipements */}
-                <div className="sm:col-span-2">
-                  <label htmlFor="equipements" className="block text-sm font-medium text-gray-900">
-                    Équipements
-                  </label>
-                  <textarea
-                    id="equipements"
-                    name="equipements"
-                    value={formData.equipements}
-                    onChange={handleChange}
-                    className="mt-2 block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline outline-1 outline-gray-300 placeholder:text-gray-400 focus:outline-2 focus:outline-indigo-600"
-                  ></textarea>
-                  {errors.equipements && (
-                    <p className="mt-2 text-sm text-red-600">{errors.equipements.join(", ")}</p>
-                  )}
-                </div>
-                {/* Plan de prévention */}
-                <div className="sm:col-span-2">
-                  <label htmlFor="pdp" className="block text-sm font-medium text-gray-900">
-                    Plan de prévention
-                  </label>
-                  <textarea
-                    id="pdp"
-                    name="pdp"
-                    value={formData.pdp}
-                    onChange={handleChange}
-                    className="mt-2 block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline outline-1 outline-gray-300 placeholder:text-gray-400 focus:outline-2 focus:outline-indigo-600"
-                  ></textarea>
-                  {errors.pdp && (
-                    <p className="mt-2 text-sm text-red-600">{errors.pdp.join(", ")}</p>
-                  )}
-                </div>
-                {/* Numéro de cadenas */}
-                <div className="sm:col-span-3">
-                  <label htmlFor="cadenas_num" className="block text-sm font-medium text-gray-900">
-                    Numéro de cadenas
-                  </label>
-                  <input
-                    id="cadenas_num"
-                    type="text"
-                    name="cadenas_num"
-                    value={formData.cadenas_num}
-                    onChange={handleChange}
-                    className="mt-2 block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline outline-1 outline-gray-300 placeholder:text-gray-400 focus:outline-2 focus:outline-indigo-600"
-                  />
-                  {errors.cadenas_num && (
-                    <p className="mt-2 text-sm text-red-600">{errors.cadenas_num.join(", ")}</p>
-                  )}
-                </div>
-                {/* Lockbox */}
-                <div className="sm:col-span-3">
-                  <label htmlFor="lockbox" className="block text-sm font-medium text-gray-900">
-                    Lockbox
-                  </label>
-                  <input
-                    id="lockbox"
-                    type="text"
-                    name="lockbox"
-                    value={formData.lockbox}
-                    onChange={handleChange}
-                    className="mt-2 block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline outline-1 outline-gray-300 placeholder:text-gray-400 focus:outline-2 focus:outline-indigo-600"
-                  />
-                  {errors.lockbox && (
-                    <p className="mt-2 text-sm text-red-600">{errors.lockbox.join(", ")}</p>
-                  )}
-                </div>
-              </div>
+  <form onSubmit={handleSubmit} className="w-full max-w-2xl space-y-12 bg-white p-6 shadow-md rounded-lg">
+    {currentStep === 1 && (
+      <div className="border-b border-gray-900/10 pb-12">
+        <h2 className="text-base font-semibold text-gray-900">BORDEREAU DE CONSIGNATION - DÉCONSIGNATION</h2>
+        <p className="mt-1 text-sm text-gray-600">Fournissez les détails du site et des travaux.</p>
+        <div className="mt-10 grid grid-cols-1 gap-x-6 gap-y-8 sm:grid-cols-2">
+          {/* Site (if applicable) */}
+          {role !== "technicien" && (
+            <div className="sm:col-span-1">
+              <label htmlFor="site_id" className="block text-sm font-medium text-gray-900">
+                Site
+              </label>
+              <CreatableSelect
+                id="site_id"
+                name="site_id"
+                value={selectedSite}
+                onChange={(value) => setSelectedSite(value)}
+                options={sites}
+                isClearable
+                placeholder="Sélectionnez ou créez un site..."
+                className="mt-2"
+              />
+              {errors.site_id && (
+                <p className="mt-2 text-sm text-red-600">{errors.site_id.join(", ")}</p>
+              )}
             </div>
           )}
+          {/* Zone */}
+          <div className="sm:col-span-1">
+            <label htmlFor="zone_id" className="block text-sm font-medium text-gray-900">
+              Zone
+            </label>
+            <CreatableSelect
+              id="zone_id"
+              name="zone_id"
+              value={selectedZone}
+              onChange={(value) => setSelectedZone(value)}
+              options={siteZones}
+              isClearable
+              placeholder="Sélectionnez ou créez une zone..."
+              className="mt-2"
+            />
+            {errors.zone_id && (
+              <p className="mt-2 text-sm text-red-600">{errors.zone_id.join(", ")}</p>
+            )}
+          </div>
+          {/* Type de consignation */}
+          <div className="sm:col-span-2">
+            <label htmlFor="type_consignation" className="block text-sm font-medium text-gray-900">
+              Type de consignation
+            </label>
+            <Select
+              id="type_consignation"
+              name="type_consignation"
+              isMulti
+              options={types_consignations}
+              value={types_consignations.filter((option) =>
+                formData.types_consignation.includes(option.value)
+              )}
+              onChange={(selectedOptions) => {
+                const selectedValues = selectedOptions ? selectedOptions.map((opt) => opt.value) : [];
+                setFormData((prev) => ({ ...prev, types_consignation: selectedValues }));
+                setSelectedTypesconsignations(selectedValues);
+              }}
+              placeholder="Sélectionnez des types..."
+              className="mt-2"
+            />
+            {errors.types_consignation_id && (
+              <p className="mt-2 text-sm text-red-600">{errors.types_consignation_id.join(", ")}</p>
+            )}
+          </div>
+          {/* Désignation des Travaux – full width */}
+          <div className="sm:col-span-2">
+            <label htmlFor="designation_travaux" className="block text-sm font-medium text-gray-900">
+              Désignation des Travaux
+            </label>
+            <textarea
+              id="designation_travaux"
+              name="designation_travaux"
+              value={formData.designation_travaux}
+              onChange={handleChange}
+              className="mt-2 block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline outline-1 outline-gray-300 placeholder:text-gray-400 focus:outline-2 focus:outline-indigo-600"
+            ></textarea>
+            {errors.designation_travaux && (
+              <p className="mt-2 text-sm text-red-600">{errors.designation_travaux.join(", ")}</p>
+            )}
+          </div>
+          {/* Équipements */}
+          <div className="sm:col-span-1">
+            <label htmlFor="equipements" className="block text-sm font-medium text-gray-900">
+              Équipements
+            </label>
+            <textarea
+              id="equipements"
+              name="equipements"
+              value={formData.equipements}
+              onChange={handleChange}
+              className="mt-2 block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline outline-1 outline-gray-300 placeholder:text-gray-400 focus:outline-2 focus:outline-indigo-600"
+            ></textarea>
+            {errors.equipements && (
+              <p className="mt-2 text-sm text-red-600">{errors.equipements.join(", ")}</p>
+            )}
+          </div>
+          {/* Plan de prévention */}
+          <div className="sm:col-span-1">
+            <label htmlFor="pdp" className="block text-sm font-medium text-gray-900">
+              Plan de prévention
+            </label>
+            <textarea
+              id="pdp"
+              name="pdp"
+              value={formData.pdp}
+              onChange={handleChange}
+              className="mt-2 block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline outline-1 outline-gray-300 placeholder:text-gray-400 focus:outline-2 focus:outline-indigo-600"
+            ></textarea>
+            {errors.pdp && (
+              <p className="mt-2 text-sm text-red-600">{errors.pdp.join(", ")}</p>
+            )}
+          </div>
+          {/* Numéro de cadenas */}
+          <div className="sm:col-span-1">
+            <label htmlFor="cadenas_num" className="block text-sm font-medium text-gray-900">
+              Numéro de cadenas
+            </label>
+            <input
+              id="cadenas_num"
+              type="text"
+              name="cadenas_num"
+              value={formData.cadenas_num}
+              onChange={handleChange}
+              className="mt-2 block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline outline-1 outline-gray-300 placeholder:text-gray-400 focus:outline-2 focus:outline-indigo-600"
+            />
+            {errors.cadenas_num && (
+              <p className="mt-2 text-sm text-red-600">{errors.cadenas_num.join(", ")}</p>
+            )}
+          </div>
+          {/* Lockbox */}
+          <div className="sm:col-span-1">
+            <label htmlFor="lockbox" className="block text-sm font-medium text-gray-900">
+              Lockbox
+            </label>
+            <input
+              id="lockbox"
+              type="text"
+              name="lockbox"
+              value={formData.lockbox}
+              onChange={handleChange}
+              className="mt-2 block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline outline-1 outline-gray-300 placeholder:text-gray-400 focus:outline-2 focus:outline-indigo-600"
+            />
+            {errors.lockbox && (
+              <p className="mt-2 text-sm text-red-600">{errors.lockbox.join(", ")}</p>
+            )}
+          </div>
+        </div>
+      </div>
+    )}
 
           {/* Étape 2 – Détails du consignateur avec sélection de l'entreprise */}
           {currentStep === 2 && (
             <div className="border-b border-gray-900/10 pb-12">
-              <h2 className="text-base font-semibold text-gray-900">Formulaire de consignation</h2>
+              <h2 className="text-base font-semibold text-gray-900">BORDEREAU DE CONSIGNATION - DÉCONSIGNATION</h2>
               <p className="mt-1 text-sm text-gray-600">Détails du consignateur</p>
               <div className="mt-10 grid grid-cols-1 gap-x-6 gap-y-8 sm:grid-cols-6">
                 {/* Sélection de l'entreprise */}
@@ -730,14 +923,33 @@ if (selectedDemandeur && selectedDemandeur.__isNew__) {
                 {/* Cases à cocher */}
                 <div className="sm:col-span-3">
                   <label className="flex items-center text-sm font-medium text-gray-900">
-                    <input
-                      type="checkbox"
-                      name="consigne_pour_moi"
-                      checked={formData.consigne_pour_moi}
-                      onChange={handleChange}
-                      className="mr-2 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-600"
-                    />
+                  <input
+  type="checkbox"
+  name="consigne_pour_moi"
+  checked={formData.consigne_pour_moi}
+  onChange={() => setFormData((prev) => ({
+    ...prev,
+    consigne_pour_moi: true,
+    consigne_pour_ee: false, // Uncheck the other checkbox
+  }))}
+/>
+
                     Consigné pour moi-même
+                  </label>
+                </div>
+                <div className="sm:col-span-3">
+                  <label className="flex items-center text-sm font-medium text-gray-900">
+                  <input
+  type="checkbox"
+  name="consigne_pour_ee"
+  checked={!formData.consigne_pour_moi}
+  onChange={() => setFormData((prev) => ({
+    ...prev,
+    consigne_pour_moi: false, // Uncheck the other checkbox
+    consigne_pour_ee: true,
+  }))}
+/>
+                    Consigné pour ee
                   </label>
                 </div>
                 <div className="sm:col-span-3">
@@ -765,7 +977,7 @@ if (selectedDemandeur && selectedDemandeur.__isNew__) {
           {currentStep === 3 &&
             (!formData.consigne_pour_moi ? (
               <div className="border-b border-gray-900/10 pb-12">
-                <h2 className="text-base font-semibold text-gray-900">Formulaire de consignation</h2>
+                <h2 className="text-base font-semibold text-gray-900">BORDEREAU DE CONSIGNATION - DÉCONSIGNATION</h2>
                 <p className="mt-1 text-sm text-gray-600">Détails du demandeur et de l'entreprise</p>
                 <div className="mt-10 grid grid-cols-1 gap-x-6 gap-y-8 sm:grid-cols-6">
                   {/* Sélection de l'entreprise extérieure */}
@@ -957,40 +1169,90 @@ if (selectedDemandeur && selectedDemandeur.__isNew__) {
             </div>
           )}
 
-          {currentStep !== 1 && (
-            <div className="mt-6 flex items-center justify-end gap-x-6">
-              {currentStep > 1 && (
-                <button
-                  type="button"
-                  onClick={handlePreviousStep}
-                  className="rounded-md bg-gray-200 px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm hover:bg-gray-300"
-                >
-                  Précédent
-                </button>
-              )}
-              {currentStep < 4 && currentStep > 1 && (
-                <button
-                  type="button"
-                  onClick={handleNextStep}
-                  className="rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500"
-                >
-                  Suivant
-                </button>
-              )}
-              {currentStep === 4 && (
-                <button
-                  type="submit"
-                  className="rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500"
-                >
-                  Envoyer
-                </button>
-              )}
-            </div>
-          )}
+{currentStep !== 1 && (
+  <div className="mt-6 flex items-center justify-end gap-x-6">
+    {currentStep === 3 && (
+  <button
+    type="button"
+    onClick={handlePlanifiedClick}
+    className="rounded-md bg-green-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-green-500"
+  >
+    Ajouter comme planifié
+  </button>
+)}
+    {currentStep > 1 && (
+      <button
+        type="button"
+        onClick={handlePreviousStep}
+        className="rounded-md bg-gray-200 px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm hover:bg-gray-300"
+      >
+        Précédent
+      </button>
+    )}
+    {currentStep < 4 && currentStep > 1 && (
+      <button
+        type="button"
+        onClick={handleNextStep}
+        className="rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500"
+      >
+        Suivant
+      </button>
+    )}
+    {currentStep === 4 && (
+      <button
+        type="submit"
+        className="rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500"
+      >
+        Envoyer
+      </button>
+    )}
+  </div>
+)}
+
         </form>
       </div>
+      {showTimeDialog && (
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+    <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-lg">
+      <h3 className="text-xl font-bold mb-4">Sélectionnez la date et l'heure</h3>
+      <input
+        type="datetime-local"
+        value={datetimeValue}
+        onChange={(e) => setDatetimeValue(e.target.value)}
+        className="w-full border p-2 rounded mb-4 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+      />
+      <div className="flex justify-end space-x-4">
+        <button
+          type="button"
+          onClick={() => setShowTimeDialog(false)}
+          className="px-4 py-2 rounded bg-gray-300 hover:bg-gray-400"
+        >
+          Annuler
+        </button>
+        <button
+          type="button"
+          onClick={handleDatetimeConfirm}
+          className="px-4 py-2 rounded bg-green-600 text-white hover:bg-green-700"
+        >
+          Confirmer
+        </button>
+      </div>
+    </div>
+  </div>
+)}
     </>
+    
   );
 };
 
+
+
+
 export default AddConsignation;
+
+
+
+
+
+
+//firebase hosting:channel:deploy just-testing

@@ -14,6 +14,9 @@ import HomePage from './home';
 import DeconsignationPage from './features/consignation/pages/deconsignation-page';
 import ConsignationDetails from './features/consignation/pages/consignation-details';
 import ConsignationArchivesPage from './features/consignation/pages/consignation-archives-page';
+import ConsignationPlanifiedPage from './features/consignation/pages/consignation-planified';
+import ContinueConsignation from './features/consignation/pages/continue-consignation-planified';
+import AddPermisDeFeu from './features/permis-de-feu/pages/addPermisDeFeu';
 
 
 
@@ -31,6 +34,12 @@ function App({ className, ...props }) {
       <Route path="/deconsignation/:id" element={<ProtectedRoute><DeconsignationPage /></ProtectedRoute>} />
       <Route path="/consignationdetails/:id" element={<ProtectedRoute><ConsignationDetails /></ProtectedRoute>} />
       <Route path="/consignationarchives" element={<ProtectedRoute><ConsignationArchivesPage /></ProtectedRoute>} />
+      <Route path="/consignationplanified" element={<ProtectedRoute><ConsignationPlanifiedPage/></ProtectedRoute>} />
+      <Route path="/continueconsignationplanified/:id" element={<ProtectedRoute><ContinueConsignation/></ProtectedRoute>} />
+      <Route path="/permisdefeu" element={<ProtectedRoute><AddPermisDeFeu/></ProtectedRoute>} />
+
+
+
 
 
 

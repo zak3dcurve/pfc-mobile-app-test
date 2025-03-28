@@ -13,6 +13,8 @@ import {
 import SignaturePad from "signature_pad";
 import { LoadingSpinner } from "@/components/loadingspinner";
 import { Badge } from "@/components/ui/badge";
+import notificationSound from "@/assets/notification.mp3";
+
 
 const ConsignationList = () => {
   const [consignations, setConsignations] = useState([]);
@@ -24,6 +26,9 @@ const ConsignationList = () => {
   const signaturePadResponsable = useRef(null);
 
   const navigate = useNavigate();
+
+  const notificationAudio = useRef(new Audio(notificationSound));
+
 
 
 
@@ -59,6 +64,37 @@ const fetchSingleConsignation = async (id) => {
   return data;
 };
 
+
+useEffect(() => {
+  const unlockAudio = () => {
+    if (notificationAudio.current) {
+      notificationAudio.current
+        .play()
+        .then(() => {
+          notificationAudio.current.pause();
+          notificationAudio.current.currentTime = 0;
+          console.log("Audio context unlocked");
+        })
+        .catch((error) => {
+          console.error("Error unlocking audio context", error);
+        });
+    }
+  };
+
+  // Add a one-time event listener for a dedicated unlock button click
+  document.addEventListener("click", unlockAudio, { once: true });
+}, []);
+
+
+
+
+
+
+
+
+
+
+
 useEffect(() => {
   const channel = supabase
     .channel("table-db-changes")
@@ -67,6 +103,11 @@ useEffect(() => {
       { event: "INSERT", schema: "public", table: "consignations" },
       async (payload) => {
         console.log("Nouvelle consignation détectée :", payload.new);
+        try {
+          await notificationAudio.current.play();
+        } catch (error) {
+          console.error("Error playing notification sound:", error);
+        }
         const newConsignation = await fetchSingleConsignation(payload.new.id);
         if (newConsignation) {
           setConsignations((prev) => [newConsignation, ...prev]);
@@ -79,6 +120,11 @@ useEffect(() => {
       async (payload) => {
         console.log("Consignation mise à jour :", payload.new);
         const updatedConsignation = await fetchSingleConsignation(payload.new.id);
+        try {
+          await notificationAudio.current.play();
+        } catch (error) {
+          console.error("Error playing notification sound:", error);
+        }
         if (updatedConsignation) {
           setConsignations((prev) =>
             prev.map((item) => (item.id === payload.new.id ? updatedConsignation : item))
@@ -94,6 +140,11 @@ useEffect(() => {
       { event: "DELETE", schema: "public", table: "consignations" },
       (payload) => {
         console.log("Consignation supprimée :", payload.old);
+        try {
+         notificationAudio.current.play();
+        } catch (error) {
+          console.error("Error playing notification sound:", error);
+        }
         setConsignations((prev) => prev.filter((item) => item.id !== payload.old.id));
       }
     )
@@ -118,32 +169,42 @@ useEffect(() => {
   };
 
   const fetchConsignations = async () => {
+    setLoading(true);
+    
     const { data, error } = await supabase
       .from("consignations")
       .select(`
         *,
         entreprises:entreprises!entreprise_id(name),
         entreprise_utilisatrice:entreprises!entreprise_utilisatrice_id(name),
+        consignateur:persons!consignations_consignateur_id_fkey(name),
         demandeur:persons!consignations_demandeur_id_fkey(name),
         zones(name),
         consignation_types_junction (
           types_consignation (type_name)
         )
       `)
-      // Order by date_consignation descending (most recent first)
-      .order("date_consignation", { ascending: false })
-      .in('status', ['pending', 'confirmed', 'deconsigné']);
-
+      .in('status', ['pending', 'confirmed', 'deconsigné'])
+      .order("date_consignation", { ascending: false }); // First sort by date
+  
     if (error) {
       console.error("Erreur lors de la récupération des consignations :", error);
     } else {
-      setConsignations(data);
+      // 🔥 Custom sorting to make sure 'pending' is always first
+      const sortedData = data.sort((a, b) => {
+        const statusPriority = { "pending": 1, "confirmed": 2, "deconsigné": 3 };
+        return statusPriority[a.status] - statusPriority[b.status];
+      });
+  
+      setConsignations(sortedData);
     }
+  
     setLoading(false);
   };
-
+  
   useEffect(() => {
     fetchConsignations();
+    
   }, []);
 
   if (loading) {
@@ -188,18 +249,30 @@ useEffect(() => {
     },
     {
       name: "Zone",
-      selector: (row) => (row.zones && row.zones.name ? row.zones.name : "N/A"),
+      selector: (row) => (row.zones && row.zones.name ? row.zones.name : "non-défini"),
       sortable: true,
     },
     {
       name: "Équipements",
-      selector: (row) => row.equipements || "N/A",
+      selector: (row) => row.equipements || "non-défini",
+      sortable: true,
+    },
+    {
+      name: "Consignateur",
+      selector: (row) =>
+        row.consignateur && row.consignateur.name ? row.consignateur.name : "non-défini",
+      sortable: true,
+    },
+    {
+      name: "Intervenant",
+      selector: (row) =>
+        row.demandeur && row.demandeur.name ? row.demandeur.name : "non-défini",
       sortable: true,
     },
     {
       name: "Entreprise",
       selector: (row) =>
-        row.entreprises && row.entreprises.name ? row.entreprises.name : "N/A",
+        row.entreprises && row.entreprises.name ? row.entreprises.name : "non-défini",
       sortable: true,
       cell: (row) => (
         <Badge className="px-2 py-1 text-xs bg-gray-600 text-white">
@@ -207,15 +280,10 @@ useEffect(() => {
         </Badge>
       ),
     },
-    {
-      name: "Intervenant",
-      selector: (row) =>
-        row.demandeur && row.demandeur.name ? row.demandeur.name : "N/A",
-      sortable: true,
-    },
+    
     {
       name: "Statut",
-      selector: (row) => row.status || "N/A",
+      selector: (row) => row.status || "non-défini",
       sortable: true,
       cell: (row) => (
         <Badge
@@ -380,8 +448,11 @@ useEffect(() => {
               <div className="p-4 text-center">Aucun enregistrement à afficher</div>
             }
           />
+          
         </div>
+        
       </div>
+      
     </>
   );
 };

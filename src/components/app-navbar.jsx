@@ -14,6 +14,7 @@ function classNames(...classes) {
 const navigation = [
   { name: "Accueil", path: "/home" },
   { name: "Consignation", path: "/consignationlist" },
+  { name: "Planifié", path: "/consignationplanified" },
   { name: "Permis de feu", path: "/pdf" },
 ];
 

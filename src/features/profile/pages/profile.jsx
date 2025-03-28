@@ -77,6 +77,8 @@ function ProfilePage({ className, ...props }) {
           <CardDescription>Vous êtes connecté à votre compte</CardDescription>
           <CardDescription>Votre role est {role}</CardDescription>
           <CardDescription>Votre site est {site?.name}</CardDescription>
+          <CardDescription>Votre password est {site?.site_password}</CardDescription>
+
           <CardDescription>Votre entreprise est {entreprise?.name}</CardDescription>
 
 

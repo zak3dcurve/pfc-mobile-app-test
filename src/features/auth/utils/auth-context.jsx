@@ -29,7 +29,7 @@ export const AuthProvider = ({ children }) => {
     const fetchUserRole = async (userId) => {
       const { data, error } = await supabase
         .from("profiles")  // Select from the user_roles table
-        .select("roles(name) , sites(id , name) , entreprises(id , name)") // Get the role name from the roles table
+        .select("roles(name) , sites(id , name, site_password) , entreprises(id , name)") // Get the role name from the roles table
         .eq("id", userId) // Filter by the current user
         .single(); // Expect only one result
 
