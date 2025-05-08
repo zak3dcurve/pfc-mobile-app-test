@@ -17,6 +17,11 @@ import ConsignationArchivesPage from './features/consignation/pages/consignation
 import ConsignationPlanifiedPage from './features/consignation/pages/consignation-planified';
 import ContinueConsignation from './features/consignation/pages/continue-consignation-planified';
 import AddPermisDeFeu from './features/permis-de-feu/pages/addPermisDeFeu';
+import PermisDeFeuList from './features/permis-de-feu/pages/permis-de-feu-list';
+import PauseDejeunerTimer from './features/permis-de-feu/pages/timer-15min';
+import PermisDeFeuDetails from './features/permis-de-feu/pages/permis_de_feu_details';
+import AddMultiConsignation from './features/consignation/pages/consignation-muliple';
+import MulticonsDetail from './features/consignation/pages/multiconsdetail';
 
 
 
@@ -37,10 +42,11 @@ function App({ className, ...props }) {
       <Route path="/consignationplanified" element={<ProtectedRoute><ConsignationPlanifiedPage/></ProtectedRoute>} />
       <Route path="/continueconsignationplanified/:id" element={<ProtectedRoute><ContinueConsignation/></ProtectedRoute>} />
       <Route path="/permisdefeu" element={<ProtectedRoute><AddPermisDeFeu/></ProtectedRoute>} />
-
-
-
-
+      <Route path="/listpermisdefeu" element={<ProtectedRoute><PermisDeFeuList/></ProtectedRoute>} />
+      <Route path="/tes/:id" element={<ProtectedRoute><PauseDejeunerTimer/></ProtectedRoute>} />
+      <Route path="/permisdefeudetails/:id" element={<ProtectedRoute><PermisDeFeuDetails/></ProtectedRoute>} />
+      <Route path="/multiconsignation/:id" element={<ProtectedRoute><AddMultiConsignation/></ProtectedRoute>} />
+      <Route path="/multiconsdetails/:id" element={<ProtectedRoute><MulticonsDetail/></ProtectedRoute>} />
 
 
       <Route path="*" element={<Navigate to="/profile" />} />

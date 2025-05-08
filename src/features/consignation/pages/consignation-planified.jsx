@@ -324,6 +324,8 @@ useEffect(() => {
             conditionalRowStyles={conditionalRowStyles}
             onRowClicked={handleRowClick}
             pointerOnHover
+            noDataComponent={<div className="p-4 text-center">Aucun enregistrement à afficher</div>}
+
           />
         </div>
       </div>

@@ -1,1 +1,31 @@
 @import "tailwindcss";
+
+
+@keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(0,31,84, 0.4); }
+    70% { box-shadow: 0 0 0 10px rgba(0,31,84, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(0,31,84, 0); }
+  }
+  
+
+
+  @keyframes pendingShake {
+    0% { transform: translateX(0); }
+    25% { transform: translateX(-1px); }
+    50% { transform: translateX(1px); }
+    75% { transform: translateX(-1px); }
+    100% { transform: translateX(0); }
+  }
+
+
+  @keyframes slideIn {
+    from { height: 0; }
+    to { height: 100%; }
+  }
+
+
+  @keyframes shine {
+    to {
+      left: 125%;
+    }
+  }

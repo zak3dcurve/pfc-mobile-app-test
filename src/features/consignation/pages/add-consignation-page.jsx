@@ -325,16 +325,28 @@ const [consigne_pour_ee, setConsignePourEE] = useState(true);
     return Object.keys(newErrors).length === 0;
   };
 
-  // Navigation entre les étapes
-  const handleNextStep = () => {
-    if (validateStep(currentStep)) {
-      setCurrentStep((prev) => prev + 1);
+// Navigation between the steps.
+const handleNextStep = () => {
+  if (validateStep(currentStep)) {
+    // If we're on step 2 and "Consigné pour moi" is checked,
+    // jump directly to step 4 (skip step 3)
+    if (currentStep === 2 && formData.consigne_pour_moi) {
+      setCurrentStep(4);
+    } else {
+      setCurrentStep(currentStep + 1);
     }
-  };
+  }
+};
 
-  const handlePreviousStep = () => {
-    setCurrentStep((prev) => prev - 1);
-  };
+const handlePreviousStep = () => {
+  // If we're on step 4 and "Consigné pour moi" is checked,
+  // go back directly to step 2 (skipping step 3)
+  if (currentStep === 4 && formData.consigne_pour_moi) {
+    setCurrentStep(2);
+  } else {
+    setCurrentStep(currentStep - 1);
+  }
+};
 
   const handleReturn = () => {
     navigate(-1);
@@ -425,31 +437,38 @@ if (selectedDemandeur && selectedDemandeur.__isNew__) {
 
     let finalEntrepriseUtilisatrice = selectedEntrepriseUtilisatrice;
 
-    // Construction du payload final.
-    const updatedFormData = {
-      ...formData,
-      entreprise_utilisatrice_id: finalEntrepriseUtilisatrice ? Number(finalEntrepriseUtilisatrice.value) : "",
-      site_id: finalSite ? Number(finalSite.value) : "",
-      zone_id: finalZone ? Number(finalZone.value) : "",
-      consignateur_id: finalConsignateur ? Number(finalConsignateur.value) : "",
-      demandeur_id: finalDemandeur ? Number(finalDemandeur.value) : "",
-      entreprise_id: finalEntreprise ? Number(finalEntreprise.value) : "",
-      signature_consignateur:
-        signaturePadConsignateur.current && !signaturePadConsignateur.current.isEmpty()
-          ? signaturePadConsignateur.current.toDataURL()
-          : "",
-      signature_demandeur:
-        signaturePadDemandeur.current && !signaturePadDemandeur.current.isEmpty()
-          ? signaturePadDemandeur.current.toDataURL()
-          : "",
-      signature_attestation:
-        signaturePadAttestation.current && !signaturePadAttestation.current.isEmpty()
-          ? signaturePadAttestation.current.toDataURL()
-          : "",
-          created_by: user.id,
-    updated_by: user.id,
-          
-    };
+
+    const fullDateTime = appendTimezoneOffset(formData.date_consignation);
+
+ // Constructing the final payload.
+ const updatedFormData = {
+  ...formData,
+  date_consignation: fullDateTime,
+  entreprise_utilisatrice_id: finalEntrepriseUtilisatrice ? Number(finalEntrepriseUtilisatrice.value) : "",
+  site_id: finalSite ? Number(finalSite.value) : "",
+  zone_id: finalZone ? Number(finalZone.value) : "",
+  consignateur_id: finalConsignateur ? Number(finalConsignateur.value) : "",
+  demandeur_id: finalDemandeur ? Number(finalDemandeur.value) : "",
+  entreprise_id: finalEntreprise ? Number(finalEntreprise.value) : "",
+  signature_consignateur:
+    signaturePadConsignateur.current && !signaturePadConsignateur.current.isEmpty()
+      ? signaturePadConsignateur.current.toDataURL()
+      : "",
+  // If "consigné pour moi" is true, use the consignateur signature
+  signature_demandeur: formData.consigne_pour_moi
+    ? signaturePadConsignateur.current && !signaturePadConsignateur.current.isEmpty()
+      ? signaturePadConsignateur.current.toDataURL()
+      : ""
+    : signaturePadDemandeur.current && !signaturePadDemandeur.current.isEmpty()
+    ? signaturePadDemandeur.current.toDataURL()
+    : "",
+  signature_attestation:
+    signaturePadAttestation.current && !signaturePadAttestation.current.isEmpty()
+      ? signaturePadAttestation.current.toDataURL()
+      : "",
+  created_by: user.id,
+  updated_by: user.id,
+};
 
     // Retirer le champ types_consignation si non utilisé
     const { types_consignation, consigne_pour_ee, ...dataToInsert } = updatedFormData;
@@ -462,7 +481,7 @@ if (selectedDemandeur && selectedDemandeur.__isNew__) {
     }
 
     console.log("Consignation insérée avec succès !", dataToInsert);
-    navigate("/consignationlist");
+    navigate("/home");
 
     if (selectedTypesconsignations && selectedTypesconsignations.length > 0) {
       const consignationId = data[0].id;
@@ -679,7 +698,17 @@ if (selectedDemandeur && selectedDemandeur.__isNew__) {
 
 
 
-
+  const appendTimezoneOffset = (localDateTimeString) => {
+    // Create a Date object using the local date-time string.
+    const localDate = new Date(localDateTimeString);
+    // Get the dynamic offset.
+    const offsetMinutes = -localDate.getTimezoneOffset();
+    const pad = (n) => String(n).padStart(2, "0");
+    const sign = offsetMinutes >= 0 ? "+" : "-";
+    const offsetHours = pad(Math.floor(Math.abs(offsetMinutes) / 60));
+    const offsetRemMinutes = pad(Math.abs(offsetMinutes) % 60);
+    return `${localDateTimeString}${sign}${offsetHours}:${offsetRemMinutes}`;
+  };
 
 
 
@@ -923,33 +952,14 @@ if (selectedDemandeur && selectedDemandeur.__isNew__) {
                 {/* Cases à cocher */}
                 <div className="sm:col-span-3">
                   <label className="flex items-center text-sm font-medium text-gray-900">
-                  <input
-  type="checkbox"
-  name="consigne_pour_moi"
-  checked={formData.consigne_pour_moi}
-  onChange={() => setFormData((prev) => ({
-    ...prev,
-    consigne_pour_moi: true,
-    consigne_pour_ee: false, // Uncheck the other checkbox
-  }))}
-/>
-
+                    <input
+                      type="checkbox"
+                      name="consigne_pour_moi"
+                      checked={formData.consigne_pour_moi}
+                      onChange={handleChange}
+                      className="mr-2 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-600"
+                    />
                     Consigné pour moi-même
-                  </label>
-                </div>
-                <div className="sm:col-span-3">
-                  <label className="flex items-center text-sm font-medium text-gray-900">
-                  <input
-  type="checkbox"
-  name="consigne_pour_ee"
-  checked={!formData.consigne_pour_moi}
-  onChange={() => setFormData((prev) => ({
-    ...prev,
-    consigne_pour_moi: false, // Uncheck the other checkbox
-    consigne_pour_ee: true,
-  }))}
-/>
-                    Consigné pour ee
                   </label>
                 </div>
                 <div className="sm:col-span-3">

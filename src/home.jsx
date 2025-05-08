@@ -1,143 +1,357 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import DataTable from "react-data-table-component";
 import Navbar from "@/components/app-navbar";
 import { supabase } from "@/features/auth/utils/supabase-client";
 import { LoadingSpinner } from "@/components/loadingspinner";
 import { Badge } from "@/components/ui/badge";
+import notificationSound from "@/assets/notification.mp3";
 
-const ConsignationList = () => {
+const ConsignationHome = () => {
   const [consignations, setConsignations] = useState([]);
+  const [permis, setPermis] = useState([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+  const notificationAudio = useRef(new Audio(notificationSound));
+  const allowedStatuses = ["pending", "confirmed", "deconsigné"];
 
-
-
-
-
-  /* realtime************************************************************************************************************************************ */
-
-
-
-const allowedStatuses = ['pending', 'confirmed', 'deconsigné'];
-
-const fetchSingleConsignation = async (id) => {
-  const { data, error } = await supabase
-    .from("consignations")
-    .select(`
-      *,
-      entreprises:entreprises!entreprise_id(name),
-      entreprise_utilisatrice:entreprises!entreprise_utilisatrice_id(name),
-      demandeur:persons!consignations_demandeur_id_fkey(name),
-      zones(name),
-      consignation_types_junction (
-        types_consignation (type_name)
-      )
-    `)
-    .eq("id", id)
-    .in("status", allowedStatuses)
-    .maybeSingle();
-
-  if (error) {
-    console.error("Erreur lors de la récupération de la consignation:", error);
-    return null;
-  }
-  return data;
-};
-
-useEffect(() => {
-  const channel = supabase
-    .channel("table-db-changes")
-    .on(
-      "postgres_changes",
-      { event: "INSERT", schema: "public", table: "consignations" },
-      async (payload) => {
-        console.log("Nouvelle consignation détectée :", payload.new);
-        const newConsignation = await fetchSingleConsignation(payload.new.id);
-        if (newConsignation) {
-          setConsignations((prev) => [newConsignation, ...prev]);
-        }
-      }
-    )
-    .on(
-      "postgres_changes",
-      { event: "UPDATE", schema: "public", table: "consignations" },
-      async (payload) => {
-        console.log("Consignation mise à jour :", payload.new);
-        const updatedConsignation = await fetchSingleConsignation(payload.new.id);
-        if (updatedConsignation) {
-          setConsignations((prev) =>
-            prev.map((item) => (item.id === payload.new.id ? updatedConsignation : item))
-          );
-        } else {
-          // Remove the record if its status no longer matches allowedStatuses
-          setConsignations((prev) => prev.filter((item) => item.id !== payload.new.id));
-        }
-      }
-    )
-    .on(
-      "postgres_changes",
-      { event: "DELETE", schema: "public", table: "consignations" },
-      (payload) => {
-        console.log("Consignation supprimée :", payload.old);
-        setConsignations((prev) => prev.filter((item) => item.id !== payload.old.id));
-      }
-    )
-    .subscribe();
-
-  return () => {
-    supabase.removeChannel(channel);
-  };
-}, []);
-
-
-
-
-/* realtime************************************************************************************************************************************ */
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-  // Fetch consignations ordered by date_consignation descending and filtered by status
-  const fetchConsignations = async () => {
+  // Fetch single consignation (for realtime)
+  const fetchSingleConsignation = async (id) => {
     const { data, error } = await supabase
       .from("consignations")
       .select(`
         *,
         entreprises:entreprises!entreprise_id(name),
         entreprise_utilisatrice:entreprises!entreprise_utilisatrice_id(name),
+        consignateur:persons!consignations_consignateur_id_fkey(name),
         demandeur:persons!consignations_demandeur_id_fkey(name),
         zones(name),
         consignation_types_junction (
           types_consignation (type_name)
         )
       `)
-      .order("date_consignation", { ascending: false })
-      .in("status", ["pending", "confirmed", "deconsigné"]);
-
-    if (error) {
-      console.error("Erreur lors de la récupération des consignations :", error);
-    } else {
-      setConsignations(data);
-    }
-    setLoading(false);
+      .eq("id", id)
+      .in("status", allowedStatuses)
+      .maybeSingle();
+    if (error) console.error("Erreur fetchSingleConsignation:", error);
+    return data;
   };
 
+  // Realtime subscription
   useEffect(() => {
-    fetchConsignations();
+    const unlockAudio = () => {
+      notificationAudio.current
+        .play()
+        .then(() => {
+          notificationAudio.current.pause();
+          notificationAudio.current.currentTime = 0;
+        })
+        .catch(() => {});
+    };
+    document.addEventListener("click", unlockAudio, { once: true });
+
+    const channel = supabase
+      .channel("consignations-ch")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "consignations" },
+        async (payload) => {
+          notificationAudio.current.play().catch(() => {});
+          const newC = await fetchSingleConsignation(payload.new.id);
+          if (newC) setConsignations((prev) => [newC, ...prev]);
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "consignations" },
+        async (payload) => {
+          notificationAudio.current.play().catch(() => {});
+          const upd = await fetchSingleConsignation(payload.new.id);
+          setConsignations((prev) =>
+            upd
+              ? prev.map((r) => (r.id === upd.id ? upd : r))
+              : prev.filter((r) => r.id !== payload.new.id)
+          );
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "DELETE", schema: "public", table: "consignations" },
+        (payload) => {
+          notificationAudio.current.play().catch(() => {});
+          setConsignations((prev) => prev.filter((r) => r.id !== payload.old.id));
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+      document.removeEventListener("click", unlockAudio);
+    };
   }, []);
+
+  // Fetch both tables on mount
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+
+      // Consignations
+      const { data: cData, error: cErr } = await supabase
+        .from("consignations")
+        .select(`
+          *,
+          entreprises:entreprises!entreprise_id(name),
+          entreprise_utilisatrice:entreprises!entreprise_utilisatrice_id(name),
+          consignateur:persons!consignations_consignateur_id_fkey(name),
+          demandeur:persons!consignations_demandeur_id_fkey(name),
+          zones(name),
+          consignation_types_junction (
+            types_consignation (type_name)
+          )
+        `)
+        .in("status", allowedStatuses)
+        .order("date_consignation", { ascending: false });
+      if (cErr) console.error("Erreur fetch consignations:", cErr);
+      else setConsignations(groupConsignations(cData));
+
+      // Permis de Feu
+      const { data: pData, error: pErr } = await supabase
+        .from("permis_de_feu")
+        .select(`
+          *,
+          responsables:persons!resp_surveillance_id(name),
+          zones:zones!lieu_id(name)
+        `)
+        .order("created_at", { ascending: false });
+      if (pErr) console.error("Erreur fetch permis:", pErr);
+      else setPermis(pData);
+
+      setLoading(false);
+    };
+    fetchData();
+  }, []);
+
+  // Group multi-consignations
+  const groupConsignations = (data) => {
+    const grouped = [];
+    const multi = {};
+    data.forEach((r) => {
+      if (r.multi_consignation_id && ["pending", "confirmed"].includes(r.status)) {
+        if (!multi[r.multi_consignation_id]) multi[r.multi_consignation_id] = { ...r, count: 1 };
+        else multi[r.multi_consignation_id].count++;
+      } else grouped.push(r);
+    });
+    Object.values(multi).forEach((g) => grouped.push(g));
+    return grouped;
+  };
+
+  const statusMapping = {
+    pending: "En attente",
+    confirmed: "Consigné",
+    deconsigné: "Déconsigné",
+  };
+
+  // Columns for Consignations
+  const columns = [
+    {
+      name: "   ",
+      selector: (r) =>
+        r.multi_consignation_id && ["pending", "confirmed"].includes(r.status) ? (
+          <span title="Consignation multiple" style={{ fontSize: "1.2rem", color: "#4caf50" }}>
+          </span>
+        ) : null,
+      width: "70px",
+    },
+    {
+      name: "Date et heure",
+      selector: (r) =>
+        r.date_consignation
+          ? `${new Date(r.date_consignation).toLocaleDateString("fr-FR")} ${new Date(
+              r.date_consignation
+            ).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", hour12: false })}`
+          : "N/A",
+      sortable: true,
+    },
+    {
+      name: "Zone",
+      selector: (r) => r.zones?.name || "non-défini",
+      sortable: true,
+    },
+    {
+      name: "Consignateur",
+      selector: (r) => r.consignateur?.name || "non-défini",
+      sortable: true,
+    },
+    {
+      name: "Intervenant",
+      selector: (r) => r.demandeur?.name || "non-défini",
+      sortable: true,
+    },
+    {
+      name: "Entreprise",
+      selector: (row) => row.entreprises?.name || "non-défini",
+      cell: (row) =>
+        row.multi_consignation_id &&
+        ["pending", "confirmed"].includes(row.status) ? (
+          <span
+            title="Consignation multiple"
+            style={{ fontSize: "1.2rem", color: "#4caf50" }}
+          >
+            &#128101;
+          </span>
+        ) : (
+          <Badge className="px-2 py-1 text-xs bg-gray-600 text-white">
+            {row.entreprises?.name}
+          </Badge>
+        ),
+      sortable: true,
+    },
+    
+    {
+      name: "Statut",
+      selector: (r) => r.status || "non-défini",
+      cell: (r) => (
+        <Badge
+          className={`px-2 py-1 text-xs ${
+            r.status === "pending"
+              ? "bg-orange-600/80 text-white"
+              : r.status === "confirmed"
+              ? "bg-green-600/80 text-white"
+              : r.status === "deconsigné"
+              ? "bg-red-600/80 text-white"
+              : "bg-gray-800/80 text-white"
+          }`}
+        >
+          {statusMapping[r.status] || r.status}
+        </Badge>
+      ),
+      sortable: true,
+    },
+  ];
+
+  // Columns for Permis de Feu
+  const permisColumns = [
+    {
+      name: "Heure de début",
+      selector: (r) =>
+        r.heure_debut
+          ? new Date(r.heure_debut).toLocaleString("fr-FR", {
+              year: "numeric",
+              month: "2-digit",
+              day: "2-digit",
+              hour: "2-digit",
+              minute: "2-digit",
+              hour12: false,
+            })
+          : "N/A",
+      sortable: true,
+    },
+    {
+      name: "Heure de fin",
+      selector: (r) =>
+        r.heure_fin
+          ? new Date(r.heure_fin).toLocaleString("fr-FR", {
+              year: "numeric",
+              month: "2-digit",
+              day: "2-digit",
+              hour: "2-digit",
+              minute: "2-digit",
+              hour12: false,
+            })
+          : "N/A",
+      sortable: true,
+    },
+    {
+      name: "Lieu",
+      selector: (r) => r.zones?.name || "N/A",
+      sortable: true,
+    },
+    {
+      name: "Nom responsable",
+      selector: (r) => r.responsables?.name || "N/A",
+      sortable: true,
+    },
+    {
+      name: "Statut",
+      selector: () => "en cours",
+      cell: () => <Badge className="px-2 py-1 text-xs bg-green-600 text-white">en cours</Badge>,
+      sortable: false,
+    },
+    {
+      name: "Type",
+      selector: () => "permis de feu",
+      cell: () => <Badge className="px-2 py-1 text-xs bg-blue-600 text-white">permis de feu</Badge>,
+      sortable: false,
+    },
+  ];
+
+  const customStyles = {
+    headRow: { style: { backgroundColor: "#1b2631" } },
+    headCells: { style: { color: "#fff", fontSize: "14px" } },
+    rows: { style: { cursor: "pointer", transition: "background-color 0.3s" } },
+  };
+
+  const conditionalRowStyles = [
+    {
+      when: (r) => r.status === "confirmed",
+      style: {
+        backgroundColor: "rgba(37, 201, 45, 0.27)",
+        "&:hover": { backgroundColor: "rgba(0, 255, 13, 0.27)", color: "#000" },
+        "&:active": { backgroundColor: "rgba(2, 100, 17, 0.27)", color: "#000" },
+      },
+    },
+    {
+      when: (r) => r.status === "deconsigné",
+      style: {
+        backgroundColor: "rgba(201, 37, 37, 0.27)",
+        "&:hover": { backgroundColor: "rgba(255, 0, 0, 0.27)", color: "#000" },
+        "&:active": { backgroundColor: "rgba(100, 2, 2, 0.27)", color: "#000" },
+      },
+    },
+    {
+      when: (r) => r.status === "pending",
+      style: {
+        backgroundColor: "rgba(255, 174, 0, 0.27)",
+        "&:hover": { backgroundColor: "rgba(255, 187, 0, 0.27)", color: "#000" },
+        "&:active": { backgroundColor: "rgba(255, 123, 0, 0.27)", color: "#000" },
+      },
+    },
+    {
+      when: (r) => r.multi_consignation_id && r.status === "pending",
+      style: {
+        backgroundColor: "#f7faff",
+        borderLeft: "4px solid #001f54",
+        color: "#001f54",
+        fontWeight: "600",
+        fontFamily: "Segoe UI, Roboto, sans-serif",
+        "&:hover": { backgroundColor: "rgba(255, 187, 0, 0.27)", color: "#000" },
+        "&:active": { backgroundColor: "rgba(255, 123, 0, 0.27)", color: "#000" },
+      },
+    },
+    {
+      when: (r) => r.multi_consignation_id && r.status === "confirmed",
+      style: {
+        backgroundColor: "#f7faff",
+        borderLeft: "4px solid #001f54",
+        color: "#001f54",
+        fontWeight: "600",
+        fontFamily: "Segoe UI, Roboto, sans-serif",
+        "&:hover": { backgroundColor: "rgba(30, 255, 0, 0.27)", color: "#000" },
+        "&:active": { backgroundColor: "rgba(0, 255, 42, 0.27)", color: "#000" },
+      },
+    },
+  ];
+
+  const handleRowClickConsignations = (row) => {
+    console.log(row.status);
+    // If this is a grouped (multiple) record then navigate to the multi details page.
+    if (row.multi_consignation_id && ( row.status === "pending" || row.status === "confirmed" ) ) {
+      navigate(`/multiconsdetails/${row.multi_consignation_id}`);
+    } else {
+      navigate(`/consignationdetails/${row.id}`);
+    }
+  };  
+  const handleRowClickPermis = (r) => navigate(`/permisdefeudetails/${r.id}`);
 
   if (loading) {
     return (
@@ -149,160 +363,13 @@ useEffect(() => {
     );
   }
 
-  // Common columns for both tables
-  const columns = [
-    {
-      name: "Date et heure",
-      selector: (row) =>
-        row.date_consignation
-          ? (() => {
-              const date = new Date(row.date_consignation);
-              return `${date.toLocaleDateString("fr-FR")} ${date.toLocaleTimeString("fr-FR", {
-                hour: "2-digit",
-                minute: "2-digit",
-                hour12: false,
-              })}`;
-            })()
-          : "N/A",
-      sortable: true,
-    },
-    {
-      name: "Zone",
-      selector: (row) => (row.zones && row.zones.name ? row.zones.name : "N/A"),
-      sortable: true,
-    },
-    {
-      name: "Équipements",
-      selector: (row) => row.equipements || "N/A",
-      sortable: true,
-    },
-    {
-      name: "Entreprise",
-      selector: (row) =>
-        row.entreprises && row.entreprises.name ? row.entreprises.name : "N/A",
-      sortable: true,
-      cell: (row) => (
-        <Badge className="px-2 py-1 text-xs bg-gray-600 text-white">
-          {row.entreprises.name}
-        </Badge>
-      ),
-    },
-    {
-      name: "Intervenant",
-      selector: (row) =>
-        row.demandeur && row.demandeur.name ? row.demandeur.name : "N/A",
-      sortable: true,
-    },
-    {
-      name: "Statut",
-      selector: (row) => row.status || "N/A",
-      sortable: true,
-      cell: (row) => {
-        const statusMapping = {
-          pending: "En attente",
-          confirmed: "Consigné",
-          "deconsigné": "Déconsigné",
-        };
-        return (
-          <Badge
-            className={`px-2 py-1 text-xs ${
-              row.status === "pending"
-                ? "bg-gray-200/80 text-black"
-                : row.status === "confirmed"
-                ? "bg-green-600/80 text-white"
-                : row.status === "deconsigné"
-                ? "bg-red-600/80 text-white"
-                : "bg-gray-800/80 text-white"
-            }`}
-          >
-            {statusMapping[row.status] || row.status}
-          </Badge>
-        );
-      },
-    },
-  ];
-
-  const customStyles = {
-    headRow: {
-      style: {
-        backgroundColor: "#1b2631",
-      },
-    },
-    headCells: {
-      style: {
-        color: "#fff",
-        fontSize: "14px",
-      },
-    },
-    rows: {
-      style: {
-        cursor: "pointer",
-        transition: "background-color 0.3s",
-      },
-    },
-  };
-
-  const conditionalRowStyles = [
-    {
-      when: (row) => row.status === "confirmed",
-      style: {
-        backgroundColor: "rgba(37, 201, 45, 0.27)",
-        "&:hover": {
-          backgroundColor: "rgba(0, 255, 13, 0.27)",
-          color: "#000",
-        },
-        "&:active": {
-          backgroundColor: "rgba(2, 100, 17, 0.27)",
-          color: "#000",
-        },
-      },
-    },
-    {
-      when: (row) => row.status === "deconsigné",
-      style: {
-        backgroundColor: "rgba(201, 37, 37, 0.27)",
-        "&:hover": {
-          backgroundColor: "rgba(255, 0, 0, 0.27)",
-          color: "#000",
-        },
-        "&:active": {
-          backgroundColor: "rgba(100, 2, 2, 0.27)",
-          color: "#000",
-        },
-      },
-    },
-    {
-      when: (row) => row.status === "pending",
-      style: {
-        backgroundColor: "rgba(255, 255, 255, 0.27)",
-        "&:hover": {
-          backgroundColor: "rgba(209, 209, 209, 0.27)",
-          color: "#000",
-        },
-        "&:active": {
-          backgroundColor: "rgba(73, 73, 73, 0.27)",
-          color: "#000",
-        },
-      },
-    },
-  ];
-
-  // Row click handler for the Consignations table
-  const handleRowClickConsignations = (row) => {
-    navigate(`/consignationdetails/${row.id}`);
-  };
-
-  // Empty data for Permis de Feu table
-  const permisData = [];
-
   return (
     <>
       <Navbar />
 
-      {/* Outer container */}
       <div className="bg-gray-200 flex items-center justify-center min-h-screen px-4 sm:px-6 lg:px-8">
         <div className="flex flex-col gap-6 w-full max-w-7xl mx-auto mt-20 mb-10">
-          {/* Consignations Card */}
+          {/* Consignations */}
           <div className="bg-white rounded-lg shadow-lg p-6">
             <div className="flex flex-col sm:flex-row justify-between items-center mb-6">
               <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-4 sm:mb-0">
@@ -310,32 +377,24 @@ useEffect(() => {
               </h1>
               <div>
                 <Link to="/consignationarchives">
-                  <button
-                    type="button"
-                    className="rounded-md bg-gray-700 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-gray-500 active:bg-gray-800 transition-colors"
-                  >
+                  <button className="rounded-md bg-gray-700 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-gray-500 active:bg-gray-800 transition-colors">
                     Archives
                   </button>
                 </Link>
                 <Link to="/consignation">
-                  <button
-                    type="button"
-                    className="ml-4 rounded-md bg-green-700 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-green-500 active:bg-green-800 transition-colors"
-                  >
+                  <button className="ml-4 rounded-md bg-green-700 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-green-500 active:bg-green-800 transition-colors">
                     Ajouter une consignation
                   </button>
                 </Link>
               </div>
             </div>
-
-            {/* Legend */}
             <div className="flex items-center space-x-4 mb-4">
               <div className="flex items-center">
                 <div className="w-4 h-4 bg-green-600 rounded-full mr-2"></div>
                 <span className="text-sm text-gray-800">Consigné</span>
               </div>
               <div className="flex items-center">
-                <div className="w-4 h-4 bg-white rounded-full mr-2 border border-gray-600"></div>
+                <div className="w-4 h-4 bg-orange-400 rounded-full mr-2 "></div>
                 <span className="text-sm text-gray-800">En attente</span>
               </div>
               <div className="flex items-center">
@@ -343,7 +402,6 @@ useEffect(() => {
                 <span className="text-sm text-gray-800">Déconsigné</span>
               </div>
             </div>
-
             <DataTable
               columns={columns}
               data={consignations}
@@ -354,38 +412,31 @@ useEffect(() => {
               onRowClicked={handleRowClickConsignations}
               highlightOnHover
               pointerOnHover
-              noDataComponent={
-                <div className="p-4 text-center">Aucun enregistrement à afficher</div>
-              }
+              noDataComponent={<div className="p-4 text-center">Aucun enregistrement à afficher</div>}
             />
           </div>
 
-          {/* Permis de Feu Card (Empty and Disabled) */}
+          {/* Permis de Feu */}
           <div className="bg-white rounded-lg shadow-lg p-6">
             <div className="flex flex-col sm:flex-row justify-between items-center mb-6">
-              <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">
-                Permis de Feu
-              </h1>
-              <button
-                type="button"
-                disabled
-                className="ml-4 rounded-md bg-gray-500 px-4 py-2 text-sm font-semibold text-white shadow cursor-not-allowed"
-              >
-                Ajouter un permis de feu
-              </button>
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">Permis de Feu</h1>
+              <Link to="/permisdefeu">
+                <button className="ml-4 rounded-md bg-green-700 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-green-500 active:bg-green-800 transition-colors">
+                  Ajouter un permis de feu
+                </button>
+              </Link>
             </div>
             <DataTable
-              columns={columns}
-              data={permisData}
+              columns={permisColumns}
+              data={permis}
               customStyles={customStyles}
               fixedHeader
               fixedHeaderScrollHeight="400px"
               conditionalRowStyles={conditionalRowStyles}
+              onRowClicked={handleRowClickPermis}
               highlightOnHover
               pointerOnHover
-              noDataComponent={
-                <div className="p-4 text-center">Aucun enregistrement à afficher</div>
-              }
+              noDataComponent={<div className="p-4 text-center">Aucun enregistrement à afficher</div>}
             />
           </div>
         </div>
@@ -394,4 +445,4 @@ useEffect(() => {
   );
 };
 
-export default ConsignationList;
+export default ConsignationHome;
