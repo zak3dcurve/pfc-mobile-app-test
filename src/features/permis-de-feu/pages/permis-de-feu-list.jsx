@@ -211,7 +211,7 @@ const isRowCritical = (row) => {
         </div>
         <DataTable
           columns={columns}
-          data={permis}
+          data={rowsWithTimers} // ✅ USE THE DYNAMIC, UPDATED DATA
           customStyles={customStyles}
           fixedHeader
           fixedHeaderScrollHeight="400px"

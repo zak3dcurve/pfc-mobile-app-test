@@ -1,0 +1,827 @@
+import React, { useState, useEffect } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import { supabase } from "@/features/auth/utils/supabase-client";
+
+const PauseDejeunerTimer = () => {
+  const { id } = useParams();
+  const navigate = useNavigate();
+
+  // Fin de travail 15-min
+  const [endTime, setEndTime] = useState(null);
+  const [remainingTime, setRemainingTime] = useState(null);
+  const [timerFinished, setTimerFinished] = useState(false);
+  const [timerNull, setTimerNull] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [name, setName] = useState("");
+  const [surname, setSurname] = useState("");
+  const [form15Ended, setForm15Ended] = useState(false);
+
+  // 2-hour
+  const [timer2hStarted, setTimer2hStarted] = useState(false);
+  const [endTime2h, setEndTime2h] = useState(null);
+  const [remainingTime2h, setRemainingTime2h] = useState(null);
+  const [showFinalForm, setShowFinalForm] = useState(false);
+  const [finalName, setFinalName] = useState("");
+  const [finalSurname, setFinalSurname] = useState("");
+
+  // Pause déjeuner 15-min
+  const [endTimeDej, setEndTimeDej] = useState(null);
+  const [remainingTimeDej, setRemainingTimeDej] = useState(null);
+  const [timerDejStarted, setTimerDejStarted] = useState(false);
+  const [showFormDej, setShowFormDej] = useState(false);
+  const [nameDej, setNameDej] = useState("");
+  const [surnameDej, setSurnameDej] = useState("");
+  const [lunchDisabled, setLunchDisabled] = useState(false);
+
+  const [loading, setLoading] = useState(true);
+
+
+
+
+  const [twentyMinEnd, setTwentyMinEnd] = useState(null);
+  const [twentyMinLeft, setTwentyMinLeft] = useState(null);
+  const [twentyMinStarted, setTwentyMinStarted] = useState(false);
+  
+
+
+  const [finalDate, setFinalDate] = useState("");
+  const [finalType, setFinalType] = useState("");
+  const [finalEquipement, setFinalEquipement] = useState("");
+  const [finalIntervenant, setFinalIntervenant] = useState("");
+  const [finalResult, setFinalResult] = useState("");
+  const [equipements, setEquipements] = useState([]);
+  const [intervenants, setIntervenants] = useState([]);
+  
+
+  const [dejDate, setDejDate] = useState("");
+  const [dejType, setDejType] = useState("");
+  const [dejEquipement, setDejEquipement] = useState("");
+  const [dejIntervenant, setDejIntervenant] = useState("");
+  const [dejResult, setDejResult] = useState("");
+
+
+  const [firstDate, setFirstDate] = useState("");
+  const [firstType, setFirstType] = useState("");
+  const [firstEquipement, setFirstEquipement] = useState("");
+  const [firstIntervenant, setFirstIntervenant] = useState("");
+  const [firstResult, setFirstResult] = useState("");
+
+
+
+
+
+
+  // Fetch or create row on mount
+  useEffect(() => {
+    const fetchState = async () => {
+      setLoading(true);
+      try {
+        // ✅ Step 1: Try to get the row with maybeSingle (NO .order() or .limit())
+        let { data, error } = await supabase
+          .from("timer_end")
+          .select("timer_15min, form_15min, timer_2h, timer_dejeuner_15min, form_15min_dejeuner, form_2h, 20min")
+          .eq("pdf_id", id)
+          .maybeSingle();
+  
+        // ✅ Step 2: If no data, try inserting a new row
+        if (!data) {
+          const { error: insertError } = await supabase
+            .from("timer_end")
+            .insert({ pdf_id: id });
+  
+          // If insertion failed for reason other than duplicate (unique constraint)
+          if (insertError && insertError.code !== "23505") {
+            throw insertError;
+          }
+  
+          // ✅ Step 3: Fetch again after insert
+          ({ data, error } = await supabase
+            .from("timer_end")
+            .select("timer_15min, form_15min, timer_2h, timer_dejeuner_15min, form_15min_dejeuner, form_2h")
+            .eq("pdf_id", id)
+            .maybeSingle());
+        }
+  
+        // ✅ Step 4: Handle if still no data somehow
+        if (!data) {
+          console.warn("No data found even after insert");
+          return;
+        }
+  
+        // ✅ Final 2h form already filled
+        if (data.form_2h) {
+          navigate("/listpermisdefeu");
+          return;
+        }
+  
+        // ⏱️ 15-min end work timer
+        if (data.timer_15min) {
+          const ts = new Date(data.timer_15min).getTime();
+          const delta = ts - Date.now();
+          setTimerNull(false);
+          if (delta > 0) {
+            setEndTime(ts);
+            setRemainingTime(delta);
+          } else {
+            setTimerFinished(true);
+            if (!data.form_15min) setShowForm(true);
+          }
+        }
+        if (data.form_15min) setForm15Ended(true);
+  
+        if (data.form_15min && !data["20min"]) {
+          if (data.timer_15min) {
+            const base = new Date(data.timer_15min).getTime();
+            const twentyAfterFifteen = new Date(base + 20 * 60 * 1000).toISOString();
+            await supabase
+              .from("timer_end")
+              .update({ "20min": twentyAfterFifteen })
+              .eq("pdf_id", id);
+            const ts20 = new Date(twentyAfterFifteen).getTime();
+            setTwentyMinEnd(ts20);
+            setTwentyMinLeft(ts20 - Date.now());
+            setTwentyMinStarted(true);
+          }
+        } else if (data["20min"] && !data.form_2h) {
+          const ts20 = new Date(data["20min"]).getTime();
+          const left = ts20 - Date.now();
+          if (left > 0) {
+            setTwentyMinEnd(ts20);
+            setTwentyMinLeft(left);
+            setTwentyMinStarted(true);
+          }
+        }
+
+
+
+        // ⏱️ 2h timer
+        if (data.timer_2h) {
+          const ts2 = new Date(data.timer_2h).getTime();
+          const left2 = ts2 - Date.now();
+          if (left2 > 0) {
+            setTimer2hStarted(true);
+            setEndTime2h(ts2);
+            setRemainingTime2h(left2);
+          } else {
+            setShowFinalForm(true);
+          }
+        }
+  
+        // 🍽️ lunch
+        if (data.form_15min_dejeuner) setLunchDisabled(true);
+        if (data.timer_dejeuner_15min) {
+          const ts3 = new Date(data.timer_dejeuner_15min).getTime();
+          const left3 = ts3 - Date.now();
+          if (left3 > 0) {
+            setTimerDejStarted(true);
+            setEndTimeDej(ts3);
+            setRemainingTimeDej(left3);
+          } else if (!data.form_15min_dejeuner) {
+            setShowFormDej(true);
+          }
+        }
+
+
+
+        const { data: permisRecord, error: permisError } = await supabase
+  .from("permis_de_feu")
+  .select("lieu_id, resp_surveillance_id")
+  .eq("id", id)
+  .maybeSingle();
+
+if (permisError || !permisRecord) {
+  console.warn("No permis_de_feu record found for this ID.");
+} else {
+  const lieuId = permisRecord.lieu_id;
+  const respId = permisRecord.resp_surveillance_id;
+
+  // Fetch Equipements (Zones) filtered by lieu_id
+  const { data: zonesData } = await supabase
+    .from("zones")
+    .select("id, name")
+    .eq("id", lieuId);
+  if (zonesData) setEquipements(zonesData);
+
+  // Fetch Intervenants (Persons) filtered by resp_surveillance_id
+  const { data: personsData } = await supabase
+    .from("persons")
+    .select("id, name")
+    .eq("id", respId);
+  if (personsData) setIntervenants(personsData);
+}
+  
+      } catch (err) {
+        console.error("Fetch error:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+  
+    fetchState();
+  }, [id, navigate]);
+
+  // 15-min Fin de travail interval
+  useEffect(() => {
+    if (!endTime) return;
+    const iv = setInterval(() => {
+      const left = endTime - Date.now();
+      if (left <= 0) {
+        clearInterval(iv);
+        setRemainingTime(0);
+        setTimerFinished(true);
+        setShowForm(true);
+      } else {
+        setRemainingTime(left);
+      }
+    }, 1000);
+    return () => clearInterval(iv);
+  }, [endTime]);
+
+  // 2-hour interval
+  useEffect(() => {
+    if (!endTime2h) return;
+    const left2 = endTime2h - Date.now();
+    if (left2 <= 0) {
+      setTimer2hStarted(false);
+      setShowFinalForm(true);
+      return;
+    }
+    setRemainingTime2h(left2);
+    const iv2 = setInterval(() => {
+      const l2 = endTime2h - Date.now();
+      if (l2 <= 0) {
+        clearInterval(iv2);
+        setRemainingTime2h(0);
+        setTimer2hStarted(false);
+        setShowFinalForm(true);
+      } else {
+        setRemainingTime2h(l2);
+      }
+    }, 1000);
+    return () => clearInterval(iv2);
+  }, [endTime2h]);
+
+  // 15-min Pause déjeuner interval
+  useEffect(() => {
+    if (!endTimeDej) return;
+    const left3 = endTimeDej - Date.now();
+    if (left3 <= 0) {
+      setTimerDejStarted(false);
+      setShowFormDej(true);
+      return;
+    }
+    setRemainingTimeDej(left3);
+    const iv3 = setInterval(() => {
+      const l3 = endTimeDej - Date.now();
+      if (l3 <= 0) {
+        clearInterval(iv3);
+        setRemainingTimeDej(0);
+        setTimerDejStarted(false);
+        setShowFormDej(true);
+      } else {
+        setRemainingTimeDej(l3);
+      }
+    }, 1000);
+    return () => clearInterval(iv3);
+  }, [endTimeDej]);
+
+  // Format helper
+  const formatTime = ms => {
+    const s = Math.floor(ms/1000),
+          h = Math.floor(s/3600),
+          m = Math.floor((s%3600)/60),
+          sec = s%60;
+    if (h) {
+      return `${h.toString().padStart(2,"0")}:${m.toString().padStart(2,"0")}:${sec.toString().padStart(2,"0")}`;
+    }
+    return `${m.toString().padStart(2,"0")}:${sec.toString().padStart(2,"0")}`;
+  };
+
+  // Start both 15-min and 2-hour
+  const handleFinTravail = async () => {
+    if (!timerNull) return;
+    const new15 = new Date(Date.now()+15*60*1000).toISOString();
+    const new2h = new Date(Date.now()+2*3600*1000).toISOString();
+    const { error } = await supabase
+      .from("timer_end")
+      .update({ timer_15min: new15, timer_2h: new2h })
+      .eq("pdf_id", id);
+    if (!error) {
+      const ts15 = new Date(new15).getTime();
+      setEndTime(ts15);
+      setRemainingTime(ts15 - Date.now());
+      setTimerNull(false);
+      setTimerFinished(false);
+      setShowForm(false);
+      const ts2h = new Date(new2h).getTime();
+      setEndTime2h(ts2h);
+      setRemainingTime2h(ts2h - Date.now());
+      setTimer2hStarted(true);
+    }
+  };
+
+  // Start Pause déjeuner 15-min
+  const handlePauseDejeuner = async () => {
+    if (timerDejStarted || lunchDisabled) return;
+    const newEnd = new Date(Date.now()+15*60*1000).toISOString();
+    const { error } = await supabase
+      .from("timer_end")
+      .update({ timer_dejeuner_15min: newEnd })
+      .eq("pdf_id", id);
+    if (!error) {
+      const ts = new Date(newEnd).getTime();
+      setEndTimeDej(ts);
+      setRemainingTimeDej(ts - Date.now());
+      setTimerDejStarted(true);
+      setShowFormDej(false);
+    }
+  };
+
+  // Submit Fin de travail 15-min form
+  const handleSubmit = async e => {
+    e.preventDefault();
+  
+    if (!firstDate || !firstType || !firstEquipement || !firstIntervenant || !firstResult) {
+      return alert("Veuillez remplir tous les champs.");
+    }
+  
+    // Insert into verification_form table
+    const { error: insertError } = await supabase
+      .from("verification_form")
+      .insert({
+        date: firstDate,
+        type: "15min",
+        equipement: firstEquipement,
+        intervenant: firstIntervenant,
+        result: firstResult,
+      });
+  
+    if (insertError) {
+      console.error("Insert error:", insertError);
+      return alert("Erreur lors de la soumission.");
+    }
+  
+    // Always set form_2h to 'done' since this is final form
+    const { error: updateError } = await supabase
+      .from("timer_end")
+      .update({ form_2h: "done" })
+      .eq("pdf_id", id);
+  
+    if (updateError) {
+      console.error("Update error:", updateError);
+      return alert("Erreur lors de la mise à jour.");
+    }
+
+    setShowForm(false);
+    setForm15Ended(true);
+    setTimerNull(true);
+  
+    // Redirect after success
+    navigate("/listpermisdefeu");
+
+
+    
+  };
+
+
+
+
+
+
+  // Submit Pause déjeuner 15-min form
+  const handleSubmitDej = async e => {
+    e.preventDefault();
+  
+    if (!dejDate || !dejType || !dejEquipement || !dejIntervenant || !dejResult) {
+      return alert("Veuillez remplir tous les champs.");
+    }
+  
+    // Insert into verification_form table
+    const { error: insertError } = await supabase
+      .from("verification_form")
+      .insert({
+        date: dejDate,
+        type: "15min dejeuner",
+        equipement: dejEquipement,
+        intervenant: dejIntervenant,
+        result: dejResult,
+      });
+  
+    if (insertError) {
+      console.error("Insert error:", insertError);
+      return alert("Erreur lors de la soumission.");
+    }
+  
+    // Always set form_2h to 'done' since this is final form
+    const { error: updateError } = await supabase
+      .from("timer_end")
+      .update({ form_2h: "done" })
+      .eq("pdf_id", id);
+  
+    if (updateError) {
+      console.error("Update error:", updateError);
+      return alert("Erreur lors de la mise à jour.");
+    }
+  
+    setShowFormDej(false);
+    setTimerDejStarted(false);
+    setLunchDisabled(true);
+
+    
+    // Redirect after success
+    navigate("/listpermisdefeu");
+  };
+
+
+
+
+
+
+
+  const handleFinalForm = async (e) => {
+    e.preventDefault();
+  
+    if (!finalDate || !finalType || !finalEquipement || !finalIntervenant || !finalResult) {
+      return alert("Veuillez remplir tous les champs.");
+    }
+  
+    // Insert into verification_form table
+    const { error: insertError } = await supabase
+      .from("verification_form")
+      .insert({
+        date: finalDate,
+        type: "2h",
+        equipement: finalEquipement,
+        intervenant: finalIntervenant,
+        result: finalResult,
+      });
+  
+    if (insertError) {
+      console.error("Insert error:", insertError);
+      return alert("Erreur lors de la soumission.");
+    }
+  
+    // Always set form_2h to 'done' since this is final form
+    const { error: updateError } = await supabase
+      .from("timer_end")
+      .update({ form_2h: "done" })
+      .eq("pdf_id", id);
+  
+    if (updateError) {
+      console.error("Update error:", updateError);
+      return alert("Erreur lors de la mise à jour.");
+    }
+  
+    // Redirect after success
+    navigate("/listpermisdefeu");
+  };
+
+
+
+
+
+  
+  
+
+  return (
+    <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+      <div className="bg-white p-6 rounded-xl shadow-md w-full max-w-md text-center">
+        <h1 className="text-2xl font-bold mb-4">Fin Des Travaux</h1>
+
+        {loading ? (
+          <div className="text-gray-500">Chargement…</div>
+
+        ) : showFinalForm ? (
+          <form onSubmit={handleFinalForm} className="flex flex-col gap-3">
+  <h2 className="font-semibold text-xl">Rapport de Fin</h2>
+
+  {/* Date */}
+  <input 
+    type="datetime-local" 
+    value={finalDate} 
+    onChange={e => setFinalDate(e.target.value)} 
+    className="border p-2 rounded" 
+    required 
+  />
+
+  {/* Type */}
+  <select 
+    value={finalType} 
+    onChange={e => setFinalType(e.target.value)} 
+    className="border p-2 rounded" 
+    required
+  >
+    <option value="">Sélectionnez le type</option>
+    <option value="15min">15 min</option>
+    <option value="dejeuner 15min">Déjeuner 15 min</option>
+    <option value="2h">2 h</option>
+  </select>
+
+  {/* Equipement */}
+  <select 
+    value={finalEquipement} 
+    onChange={e => setFinalEquipement(e.target.value)} 
+    className="border p-2 rounded" 
+    required
+  >
+    <option value="">Sélectionnez l'équipement</option>
+    {equipements.map(zone => (
+      <option key={zone.id} value={zone.id}>{zone.name}</option>
+    ))}
+  </select>
+
+  {/* Intervenant */}
+  <select 
+    value={finalIntervenant} 
+    onChange={e => setFinalIntervenant(e.target.value)} 
+    className="border p-2 rounded" 
+    required
+  >
+    <option value="">Sélectionnez l'intervenant</option>
+    {intervenants.map(person => (
+      <option key={person.id} value={person.id}>{person.name}</option>
+    ))}
+  </select>
+
+  {/* Result */}
+  <select 
+    value={finalResult} 
+    onChange={e => setFinalResult(e.target.value)} 
+    className="border p-2 rounded" 
+    required
+  >
+    <option value="">Sélectionnez le résultat</option>
+    <option value="RAS">RAS</option>
+    <option value="Anomalie">Anomalie</option>
+  </select>
+
+  <button type="submit" className="bg-green-600 text-white px-4 py-2 rounded">
+    Soumettre le Rapport
+  </button>
+</form>
+
+        ) : (!timerNull && !timerFinished && timer2hStarted && !form15Ended) ? (
+          <div className="flex flex-col gap-2">
+            <p className="text-lg">15 min: {formatTime(remainingTime)}</p>
+            <p className="text-lg">2 h: {formatTime(remainingTime2h)}</p>
+          </div>
+
+        ) : (form15Ended && timer2hStarted) ? (
+          <p className="text-lg">2 h: {formatTime(remainingTime2h)}</p>
+
+        ) : showFormDej ? (
+          ///////////////////////// haaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+          ////////////////haaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+
+
+<form onSubmit={handleSubmitDej} className="flex flex-col gap-3">
+  <h2 className="font-semibold text-xl">Rapport du Pause</h2>
+
+  {/* Date */}
+  <input 
+    type="datetime-local" 
+    value={dejDate} 
+    onChange={e => setDejDate(e.target.value)} 
+    className="border p-2 rounded" 
+    required 
+  />
+
+  {/* Type */}
+  <select 
+    value={dejType} 
+    onChange={e => setDejType(e.target.value)} 
+    className="border p-2 rounded" 
+    required
+  >
+    <option value="">Sélectionnez le type</option>
+    <option value="15min">15 min</option>
+    <option value="dejeuner 15min">Déjeuner 15 min</option>
+    <option value="2h">2 h</option>
+  </select>
+
+  {/* Equipement */}
+  <select 
+    value={dejEquipement} 
+    onChange={e => setDejEquipement(e.target.value)} 
+    className="border p-2 rounded" 
+    required
+  >
+    <option value="">Sélectionnez l'équipement</option>
+    {equipements.map(zone => (
+      <option key={zone.id} value={zone.id}>{zone.name}</option>
+    ))}
+  </select>
+
+  {/* Intervenant */}
+  <select 
+    value={dejIntervenant} 
+    onChange={e => setDejIntervenant(e.target.value)} 
+    className="border p-2 rounded" 
+    required
+  >
+    <option value="">Sélectionnez l'intervenant</option>
+    {intervenants.map(person => (
+      <option key={person.id} value={person.id}>{person.name}</option>
+    ))}
+  </select>
+
+  {/* Result */}
+  <select 
+    value={dejResult} 
+    onChange={e => setDejResult(e.target.value)} 
+    className="border p-2 rounded" 
+    required
+  >
+    <option value="">Sélectionnez le résultat</option>
+    <option value="RAS">RAS</option>
+    <option value="Anomalie">Anomalie</option>
+  </select>
+
+  <button type="submit" className="bg-green-600 text-white px-4 py-2 rounded">
+    Soumettre le Rapport
+  </button>
+</form>
+
+        ) : (!timerNull && !timerFinished && timer2hStarted && !form15Ended) ? (
+          <div className="flex flex-col gap-2">
+            <p className="text-lg">15 min: {formatTime(remainingTime)}</p>
+            <p className="text-lg">2 h: {formatTime(remainingTime2h)}</p>
+          </div>
+
+        ) : (form15Ended && timer2hStarted) ? (
+          <p className="text-lg">2 h: {formatTime(remainingTime2h)}</p>
+
+        ) : showFormDej ? (
+          <form onSubmit={handleSubmitDej} className="flex flex-col gap-3">
+            <h2 className="font-semibold">Formulaire Déjeuner (15 min)</h2>
+            <input
+              placeholder="Nom"
+              value={nameDej}
+              onChange={e => setNameDej(e.target.value)}
+              className="border p-2 rounded"
+            />
+            <input
+              placeholder="Prénom"
+              value={surnameDej}
+              onChange={e => setSurnameDej(e.target.value)}
+              className="border p-2 rounded"
+            />
+            <button className="bg-blue-600 text-white px-4 py-2 rounded">
+              Soumettre
+            </button>
+          </form>
+
+
+
+
+          /////////////haaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+
+        ) : timerDejStarted ? (
+          <p className="text-lg">Pause Déjeuner: {formatTime(remainingTimeDej)}</p>
+
+        ) : timerNull ? (
+          <div className="flex flex-col gap-4">
+            <button
+              onClick={handlePauseDejeuner}
+              disabled={timerDejStarted || lunchDisabled}
+              className={
+                `bg-blue-600 text-white px-4 py-2 rounded ` +
+                ((timerDejStarted || lunchDisabled)
+                  ? "opacity-50 cursor-not-allowed"
+                  : "")
+              }
+            >
+              Pause Déjeuner
+            </button>
+            <button
+              onClick={handleFinTravail}
+              className="bg-green-600 text-white px-4 py-2 rounded"
+            >
+              Fin de travail
+            </button>
+          </div>
+
+        ) : (timerFinished && showForm) ? (
+          /////////////haaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+          /////////////haaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+          /////////////haaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+          /////////////haaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaZ
+          /////////////haaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+          /////////////haaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+          /////////////haaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+
+<form onSubmit={handleSubmit} className="flex flex-col gap-3">
+  <h2 className="font-semibold text-xl">Rapport du verification 15min</h2>
+
+  {/* Date */}
+  <input 
+    type="datetime-local" 
+    value={firstDate} 
+    onChange={e => setFirstDate(e.target.value)} 
+    className="border p-2 rounded" 
+    required 
+  />
+
+  {/* Type */}
+  <select 
+    value={firstType} 
+    onChange={e => setFirstType(e.target.value)} 
+    className="border p-2 rounded" 
+    required
+  >
+    <option value="">Sélectionnez le type</option>
+    <option value="15min">15 min</option>
+    <option value="dejeuner 15min">Déjeuner 15 min</option>
+    <option value="2h">2 h</option>
+  </select>
+
+  {/* Equipement */}
+  <select 
+    value={firstEquipement} 
+    onChange={e => setFirstEquipement(e.target.value)} 
+    className="border p-2 rounded" 
+    required
+  >
+    <option value="">Sélectionnez l'équipement</option>
+    {equipements.map(zone => (
+      <option key={zone.id} value={zone.id}>{zone.name}</option>
+    ))}
+  </select>
+
+  {/* Intervenant */}
+  <select 
+    value={firstIntervenant} 
+    onChange={e => setFirstIntervenant(e.target.value)} 
+    className="border p-2 rounded" 
+    required
+  >
+    <option value="">Sélectionnez l'intervenant</option>
+    {intervenants.map(person => (
+      <option key={person.id} value={person.id}>{person.name}</option>
+    ))}
+  </select>
+
+  {/* Result */}
+  <select 
+    value={firstResult} 
+    onChange={e => setFirstResult(e.target.value)} 
+    className="border p-2 rounded" 
+    required
+  >
+    <option value="">Sélectionnez le résultat</option>
+    <option value="RAS">RAS</option>
+    <option value="Anomalie">Anomalie</option>
+  </select>
+
+  <button type="submit" className="bg-green-600 text-white px-4 py-2 rounded">
+    Soumettre le Rapport
+  </button>
+</form>
+
+        ) : (!timerNull && !timerFinished && timer2hStarted && !form15Ended) ? (
+          <div className="flex flex-col gap-2">
+            <p className="text-lg">15 min: {formatTime(remainingTime)}</p>
+            <p className="text-lg">2 h: {formatTime(remainingTime2h)}</p>
+          </div>
+
+        ) : (form15Ended && timer2hStarted) ? (
+          <p className="text-lg">2 h: {formatTime(remainingTime2h)}</p>
+
+        ) : showFormDej ? (
+          <form onSubmit={handleSubmitDej} className="flex flex-col gap-3">
+            <h2 className="font-semibold">Formulaire Déjeuner (15 min)</h2>
+            <input
+              placeholder="Nom"
+              value={nameDej}
+              onChange={e => setNameDej(e.target.value)}
+              className="border p-2 rounded"
+            />
+            <input
+              placeholder="Prénom"
+              value={surnameDej}
+              onChange={e => setSurnameDej(e.target.value)}
+              className="border p-2 rounded"
+            />
+            <button className="bg-blue-600 text-white px-4 py-2 rounded">
+              Soumettre
+            </button>
+          </form>
+
+
+
+
+          /////////////haaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+          /////////////haaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+          /////////////haaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+          /////////////haaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+
+
+        ) : (
+          <p className="text-lg">Temps restant: {formatTime(remainingTime)}</p>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default PauseDejeunerTimer;

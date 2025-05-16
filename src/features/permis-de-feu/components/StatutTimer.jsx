@@ -55,6 +55,15 @@ export default function StatutTimer({ row }) {
     return <Badge>En attente du formulaire déjeuner</Badge>;
   }
 
+
+  if (
+    (!t15.formDone || !t15.hasTimer) &&
+    (!t2h.formDone  || !t2h.hasTimer)
+  ) {
+    return <Badge>En cours</Badge>;
+  }
+
+
   // 4) fallback
   return <Badge>Terminé</Badge>;
 }
