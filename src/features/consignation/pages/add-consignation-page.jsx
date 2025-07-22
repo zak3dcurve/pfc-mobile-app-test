@@ -1106,8 +1106,7 @@ if (selectedDemandeur && selectedDemandeur.__isNew__) {
                 </div>
               </div>
             ))}
-
-          {/* Étape 4 – Revue finale et soumission */}
+                      {/* Étape 4 – Revue finale et soumission */}
           {currentStep === 4 && (
             <div className="border-b border-gray-900/10 pb-12">
               <h2 className="text-base font-semibold text-gray-900">Étape finale</h2>
@@ -1236,7 +1235,7 @@ if (selectedDemandeur && selectedDemandeur.__isNew__) {
           type="button"
           onClick={() => setShowTimeDialog(false)}
           className="px-4 py-2 rounded bg-gray-300 hover:bg-gray-400"
-        >
+        > 
           Annuler
         </button>
         <button
@@ -1251,18 +1250,9 @@ if (selectedDemandeur && selectedDemandeur.__isNew__) {
   </div>
 )}
     </>
-    
   );
 };
 
-
-
-
 export default AddConsignation;
-
-
-
-
-
 
 //firebase hosting:channel:deploy just-testing

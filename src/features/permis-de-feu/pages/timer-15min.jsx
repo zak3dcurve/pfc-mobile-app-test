@@ -1,10 +1,108 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/features/auth/utils/supabase-client";
+import { useAuth } from "@/features/auth/utils/auth-context";
+
+
+
+
+  const FormComponent = ({ 
+    title, 
+    date, setDate, 
+    intervenant, setIntervenant,
+    result, setResult,
+      motif, setMotif,  // ✅ Add these
+  equipements,    // ✅ Add this
+  intervenants,   // ✅ Add this
+    onSubmit,
+    formType
+  }) => (
+    <form onSubmit={onSubmit} className="flex flex-col gap-3">
+      <h2 className="font-semibold text-xl">{title}</h2>
+
+      {/* Date */}
+      <input 
+        type="datetime-local" 
+        value={date} 
+        onChange={e => setDate(e.target.value)} 
+        className="border p-2 rounded" 
+        required 
+      />
+
+      {/* Equipement */}
+      <div className="border p-2 rounded bg-gray-50">
+      <strong>Équipement: </strong>
+      {equipements.length > 0 ? equipements[0].name : "Chargement..."}
+    </div>
+
+      {/* Intervenant */}
+      <select 
+        value={intervenant} 
+        onChange={e => setIntervenant(e.target.value)} 
+        className="border p-2 rounded" 
+        required
+      >
+        <option value="">Sélectionnez l'intervenant</option>
+        {intervenants.map(person => (
+          <option key={person.id} value={person.id}>{person.name}</option>
+        ))}
+      </select>
+
+      {/* Result */}
+      <select 
+        value={result} 
+        onChange={e => setResult(e.target.value)} 
+        className="border p-2 rounded" 
+        required
+      >
+        <option value="">Sélectionnez le résultat</option>
+        <option value="RAS">RAS</option>
+        <option value="Anomalie">Anomalie</option>
+      </select>
+
+
+          {result === "Anomalie" && (
+      <textarea
+        value={motif}
+        onChange={e => setMotif(e.target.value)}
+        placeholder="Décrivez le motif de l'anomalie..."
+        className="border p-2 rounded min-h-[80px]"
+        required
+      />
+    )}
+
+      <button type="submit" className="bg-green-600 text-white px-4 py-2 rounded">
+        Soumettre le Rapport
+      </button>
+      
+      {result === "Anomalie" && (
+        <p className="text-orange-600 text-sm mt-2">
+          ⚠️ Anomalie détectée - Les minuteurs redémarreront après soumission
+        </p>
+      )}
+    </form>
+  );
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 const PauseDejeunerTimer = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+    const { entreprise } = useAuth(); // Add this line
+
   const [loading, setLoading] = useState(true);
   const [timerId, setTimerId] = useState("");
 
@@ -18,26 +116,21 @@ const PauseDejeunerTimer = () => {
   const [timerFinished, setTimerFinished] = useState(false);
   const [form15Ended, setForm15Ended] = useState(false);
 
-  // 20-min grace period after 15-min timer (1 min for testing)
-  const [twentyMinEnd, setTwentyMinEnd] = useState(null);
-  const [twentyMinLeft, setTwentyMinLeft] = useState(null);
-  const [twentyMinStarted, setTwentyMinStarted] = useState(false);
-
   // 2-hour timer
   const [timer2hStarted, setTimer2hStarted] = useState(false);
   const [endTime2h, setEndTime2h] = useState(null);
   const [remainingTime2h, setRemainingTime2h] = useState(null);
   const [showFinalForm, setShowFinalForm] = useState(false);
-  const [finalFormTimeoutEnd, setFinalFormTimeoutEnd] = useState(null);
-  const [finalFormTimeLeft, setFinalFormTimeLeft] = useState(null);
 
   // Lunch break 15-min timer
   const [endTimeDej, setEndTimeDej] = useState(null);
   const [remainingTimeDej, setRemainingTimeDej] = useState(null);
   const [timerDejStarted, setTimerDejStarted] = useState(false);
   const [lunchDisabled, setLunchDisabled] = useState(false);
-  const [lunchFormTimeoutEnd, setLunchFormTimeoutEnd] = useState(null);
-  const [lunchFormTimeLeft, setLunchFormTimeLeft] = useState(null);
+  
+  // Fin pause state
+  const [finPause, setFinPause] = useState(null);
+  const [showFinPauseButton, setShowFinPauseButton] = useState(false);
 
   // Form visibility control
   const [showForm, setShowForm] = useState(false);
@@ -49,24 +142,101 @@ const PauseDejeunerTimer = () => {
 
   // Form data - 15 min form
   const [firstDate, setFirstDate] = useState("");
-  const [firstType, setFirstType] = useState("");
   const [firstEquipement, setFirstEquipement] = useState("");
   const [firstIntervenant, setFirstIntervenant] = useState("");
   const [firstResult, setFirstResult] = useState("");
+  const [firstMotif, setFirstMotif] = useState("");
+
 
   // Form data - lunch break form
   const [dejDate, setDejDate] = useState("");
-  const [dejType, setDejType] = useState("");
   const [dejEquipement, setDejEquipement] = useState("");
   const [dejIntervenant, setDejIntervenant] = useState("");
   const [dejResult, setDejResult] = useState("");
+  const [dejMotif, setDejMotif] = useState("");
+
 
   // Form data - 2h form
   const [finalDate, setFinalDate] = useState("");
-  const [finalType, setFinalType] = useState("");
   const [finalEquipement, setFinalEquipement] = useState("");
   const [finalIntervenant, setFinalIntervenant] = useState("");
   const [finalResult, setFinalResult] = useState("");
+  const [finalMotif, setFinalMotif] = useState("");
+
+
+  // Timer restart functions
+  const restart15MinTimer = async () => {
+    try {
+      const new15 = new Date(Date.now() + 15*60*1000).toISOString();
+      const { error } = await supabase
+        .from("timer_end")
+        .update({ timer_15min: new15 })
+        .eq("pdf_id", id);
+      
+      if (!error) {
+        const ts15 = new Date(new15).getTime();
+        setEndTime(ts15);
+        setRemainingTime(ts15 - Date.now());
+        setTimerFinished(false);
+        setShowForm(false);
+        setForm15Ended(false);
+        console.log("15-min timer restarted due to anomaly");
+      } else {
+        console.error("Error restarting 15-min timer:", error);
+      }
+    } catch (err) {
+      console.error("Error in restart15MinTimer:", err);
+    }
+  };
+
+  const restart2HTimer = async () => {
+    try {
+      const new2h = new Date(Date.now() + 2*3600*1000).toISOString();
+      const { error } = await supabase
+        .from("timer_end")
+        .update({ timer_2h: new2h })
+        .eq("pdf_id", id);
+      
+      if (!error) {
+        const ts2h = new Date(new2h).getTime();
+        setEndTime2h(ts2h);
+        setRemainingTime2h(ts2h - Date.now());
+        setShowFinalForm(false);
+        console.log("2-hour timer restarted due to anomaly");
+      } else {
+        console.error("Error restarting 2-hour timer:", error);
+      }
+    } catch (err) {
+      console.error("Error in restart2HTimer:", err);
+    }
+  };
+
+  const restartLunchTimer = async () => {
+    try {
+      const newEnd = new Date(Date.now() + 15*60*1000).toISOString();
+      const { error } = await supabase
+        .from("timer_end")
+        .update({ 
+          timer_dejeuner_15min: newEnd,
+          form_15min_dejeuner: null // Reset form status
+        })
+        .eq("pdf_id", id);
+      
+      if (!error) {
+        const ts = new Date(newEnd).getTime();
+        setEndTimeDej(ts);
+        setRemainingTimeDej(ts - Date.now());
+        setTimerDejStarted(true);
+        setShowFormDej(false);
+        setLunchDisabled(false);
+        console.log("Lunch timer restarted due to anomaly");
+      } else {
+        console.error("Error restarting lunch timer:", error);
+      }
+    } catch (err) {
+      console.error("Error in restartLunchTimer:", err);
+    }
+  };
 
   // Fetch or create row on mount
   useEffect(() => {
@@ -76,7 +246,7 @@ const PauseDejeunerTimer = () => {
         // Step 1: Try to get the row with maybeSingle
         let { data, error } = await supabase
           .from("timer_end")
-          .select("timer_15min, form_15min, timer_2h, timer_dejeuner_15min, form_15min_dejeuner, form_2h, 20min, 20minfordej, 20minfor2h, id")
+          .select("timer_15min, form_15min, timer_2h, timer_dejeuner_15min, form_15min_dejeuner, form_2h, fin_pause, id")
           .eq("pdf_id", id)
           .maybeSingle();
 
@@ -84,33 +254,31 @@ const PauseDejeunerTimer = () => {
           setTimerId(data.id);  
         }
 
-        // Step 2: If no data, insert a new row
+        // Step 2: If no data, try to insert a new row
         if (!data) {
           const { error: insertError } = await supabase
             .from("timer_end")
             .insert({ pdf_id: id });
 
-          // If insertion failed for reason other than duplicate constraint
-          if (insertError && insertError.code !== "23505") {
-            throw insertError;
-          }
-
-          // Step 3: Fetch again after insert
+          // Always fetch again after insert attempt
           ({ data, error } = await supabase
             .from("timer_end")
-            .select("timer_15min, form_15min, timer_2h, timer_dejeuner_15min, form_15min_dejeuner, form_2h, 20min, 20minfordej, 20minfor2h, id")
+            .select("timer_15min, form_15min, timer_2h, timer_dejeuner_15min, form_15min_dejeuner, form_2h, fin_pause, id")
             .eq("pdf_id", id)
             .maybeSingle());
+
+          if (!data) {
+            console.error("Failed to create or fetch timer_end record");
+            return;
+          }
         }
 
-        // Step 4: Handle if still no data somehow
-        if (!data) {
-          console.warn("No data found even after insert");
-          return;
+        if (data) {
+          setTimerId(data.id);  
         }
 
-        // Final 2h form already filled - redirect
-        if (data.form_2h) {
+        // Final 2h form already filled with RAS - redirect
+        if (data.form_2h === "done") {
           navigate("/listpermisdefeu");
           return;
         }
@@ -125,36 +293,10 @@ const PauseDejeunerTimer = () => {
             setRemainingTime(delta);
           } else {
             setTimerFinished(true);
-            if (!data.form_15min) setShowForm(true);
+            if (data.form_15min !== "done") setShowForm(true);
           }
         }
-        if (data.form_15min) setForm15Ended(true);
-
-        // 20-min grace period
-        if (data.form_15min && !data["20min"]) {
-          if (data.timer_15min) {
-            const base = new Date(data.timer_15min).getTime();
-            const twentyAfterFifteen = new Date(base + 1 * 60 * 1000).toISOString(); // 1 min for testing
-            await supabase
-              .from("timer_end")
-              .update({ "20min": twentyAfterFifteen })
-              .eq("pdf_id", id);
-            const ts20 = new Date(twentyAfterFifteen).getTime();
-            setTwentyMinEnd(ts20);
-            setTwentyMinLeft(ts20 - Date.now());
-            setTwentyMinStarted(true);
-            console.log("Started 20min grace period from DB initialization", twentyAfterFifteen);
-          }
-        } else if (data["20min"] && !data.form_2h) {
-          const ts20 = new Date(data["20min"]).getTime();
-          const left = ts20 - Date.now();
-          if (left > 0) {
-            setTwentyMinEnd(ts20);
-            setTwentyMinLeft(left);
-            setTwentyMinStarted(true);
-            console.log("Restored existing 20min from DB", data["20min"], "time left:", left/1000, "s");
-          }
-        }
+        if (data.form_15min === "done") setForm15Ended(true);
 
         // 2h timer
         if (data.timer_2h) {
@@ -167,30 +309,20 @@ const PauseDejeunerTimer = () => {
           } else {
             setShowFinalForm(true);
             
-            // Set up 20minfor2h grace period if needed
-            if (!data.form_2h && !data["20minfor2h"]) {
-              const newTimeout = new Date(Date.now() + 1 * 60 * 1000).toISOString(); // 1 min for testing
+            // Auto-submit 15min as non-fait when 2h expires
+            if (data.form_15min !== "done") {
               await supabase
                 .from("timer_end")
-                .update({ "20minfor2h": newTimeout })
+                .update({ form_15min: "non-fait" })
                 .eq("pdf_id", id);
-              
-              const timeoutTs = new Date(newTimeout).getTime();
-              setFinalFormTimeoutEnd(timeoutTs);
-              setFinalFormTimeLeft(timeoutTs - Date.now());
-            } else if (!data.form_2h && data["20minfor2h"]) {
-              const timeoutTs = new Date(data["20minfor2h"]).getTime();
-              const leftTimeout = timeoutTs - Date.now();
-              if (leftTimeout > 0) {
-                setFinalFormTimeoutEnd(timeoutTs);
-                setFinalFormTimeLeft(leftTimeout);
-              }
+              setForm15Ended(true);
+              setShowForm(false);
             }
           }
         }
 
         // Lunch break
-        if (data.form_15min_dejeuner) setLunchDisabled(true);
+        if (data.form_15min_dejeuner === "done") setLunchDisabled(true);
         if (data.timer_dejeuner_15min) {
           const ts3 = new Date(data.timer_dejeuner_15min).getTime();
           const left3 = ts3 - Date.now();
@@ -198,29 +330,16 @@ const PauseDejeunerTimer = () => {
             setTimerDejStarted(true);
             setEndTimeDej(ts3);
             setRemainingTimeDej(left3);
-          } else if (!data.form_15min_dejeuner) {
+          } else if (data.form_15min_dejeuner !== "done") {
             setShowFormDej(true);
-            
-            // Set up 20minfordej grace period if needed
-            if (!data.form_15min_dejeuner && !data["20minfordej"]) {
-              const newTimeout = new Date(Date.now() + 1 * 60 * 1000).toISOString(); // 1 min for testing
-              await supabase
-                .from("timer_end")
-                .update({ "20minfordej": newTimeout })
-                .eq("pdf_id", id);
-              
-              const timeoutTs = new Date(newTimeout).getTime();
-              setLunchFormTimeoutEnd(timeoutTs);
-              setLunchFormTimeLeft(timeoutTs - Date.now());
-            } else if (!data.form_15min_dejeuner && data["20minfordej"]) {
-              const timeoutTs = new Date(data["20minfordej"]).getTime();
-              const leftTimeout = timeoutTs - Date.now();
-              if (leftTimeout > 0) {
-                setLunchFormTimeoutEnd(timeoutTs);
-                setLunchFormTimeLeft(leftTimeout);
-              }
-            }
           }
+        }
+
+        // Handle fin_pause state
+        if (data.fin_pause) {
+          setFinPause(data.fin_pause);
+        } else if (data.form_15min_dejeuner === "done") {
+          setShowFinPauseButton(true);
         }
 
         // Fetch equipment and intervenant data
@@ -244,11 +363,13 @@ const PauseDejeunerTimer = () => {
           if (zonesData) setEquipements(zonesData);
 
           // Fetch Intervenants (Persons) filtered by resp_surveillance_id
-          const { data: personsData } = await supabase
-            .from("persons")
-            .select("id, name")
-            .eq("id", respId);
-          if (personsData) setIntervenants(personsData);
+if (entreprise?.id) {
+  const { data: personsData } = await supabase
+    .from("persons")
+    .select("id, name")
+    .eq("entreprise_id", entreprise.id);
+  if (personsData) setIntervenants(personsData);
+}
         }
 
       } catch (err) {
@@ -263,146 +384,22 @@ const PauseDejeunerTimer = () => {
 
   // 15-min Fin de travail interval
   useEffect(() => {
-    if (!endTime) return;
+    if (!endTime || timerFinished) return;
 
-    const iv = setInterval(async () => {
+    const iv = setInterval(() => {
       const now = Date.now();
-      const graceEndTime = endTime + 1 * 60 * 1000;
-
-      if (now >= graceEndTime && !form15Ended) {
-        // Automatically mark as "non-fait"
-        try {
-          await supabase
-            .from("timer_end")
-            .update({ form_15min: "non-fait" })
-            .eq("pdf_id", id);
-
-          setForm15Ended(true);
-          setShowForm(false);
-          setTimerNull(true);
-        } catch (err) {
-          console.error("Error updating form_15min:", err);
-        }
-      } else {
-        const left = endTime - now;
-        if (left <= 0) {
-          setTimerFinished(true);
-          setShowForm(true);
-        
-          // Start 20-Min Countdown if Not Already Started
-          if (!twentyMinEnd && !twentyMinStarted) {
-            const newTwentyMinEnd = Date.now() + 1 * 60 * 1000; // 1 minute for testing
-            setTwentyMinEnd(newTwentyMinEnd);
-            setTwentyMinStarted(true);
-            setTwentyMinLeft(1 * 60 * 1000); // 1 minute in ms for testing
-            console.log("Starting 20min from 15min expiration", new Date(newTwentyMinEnd).toISOString());
-        
-            try {
-              await supabase
-                .from("timer_end")
-                .update({ "20min": new Date(newTwentyMinEnd).toISOString() })
-                .eq("pdf_id", id);
-            } catch (err) {
-              console.error("Error updating 20min:", err);
-            }
-          }
-        }
-        setRemainingTime(Math.max(0, left));
-      }
-    }, 1000);
-
-    return () => clearInterval(iv);
-  }, [endTime, form15Ended, id, twentyMinEnd, twentyMinStarted]);
-
-  // Unified 20-minute grace period logic
-  // 1. Start the 20-min countdown when form is shown
-  useEffect(() => {
-    // Only start a new 20-min timer if the form is shown and timer hasn't been started yet
-    if (!showForm || twentyMinStarted || form15Ended) return;
-
-    console.log("Starting 20-min countdown for form submission from showForm");
-    const newTwentyMinEnd = Date.now() + 1 * 60 * 1000; // 1 minute for testing
-    setTwentyMinEnd(newTwentyMinEnd);
-    setTwentyMinStarted(true);
-    setTwentyMinLeft(1 * 60 * 1000); // 1 minute in ms for testing
-
-    // Update the 20min timestamp in the database
-    const updateDB = async () => {
-      try {
-        await supabase
-          .from("timer_end")
-          .update({ "20min": new Date(newTwentyMinEnd).toISOString() })
-          .eq("pdf_id", id);
-        console.log("Updated 20min timestamp in database", new Date(newTwentyMinEnd).toISOString());
-      } catch (error) {
-        console.error("Failed to update 20min timestamp:", error);
-      }
-    };
-    updateDB();
-  }, [showForm, twentyMinStarted, id, form15Ended]);
-
-  // 2. Single interval to handle the countdown and auto-submission
-  useEffect(() => {
-    // Only run if we have an end time and the form hasn't been submitted yet
-    if (!twentyMinEnd || form15Ended) {
-      console.log("Skipping 20min countdown - no end time or form already ended", 
-                  "twentyMinEnd:", twentyMinEnd, 
-                  "form15Ended:", form15Ended);
-      return;
-    }
-
-    console.log("Running 20-min countdown interval", new Date(twentyMinEnd).toISOString());
-    const iv = setInterval(async () => {
-      const now = Date.now();
-      const left = twentyMinEnd - now;
-      
-      // Prevent negative values
-      const adjustedLeft = Math.max(0, left);
-      console.log("20-min countdown: Time left:", Math.round(adjustedLeft/1000), "seconds");
-      setTwentyMinLeft(adjustedLeft);
-
-      // Time's up - auto-submit as "non-fait" if form hasn't been submitted yet
+      const left = endTime - now;
       if (left <= 0) {
-        console.log("20-min countdown ended, checking if form needs auto-submission");
-        try {
-          // Check current form status
-          const { data } = await supabase
-            .from("timer_end")
-            .select("form_15min")
-            .eq("pdf_id", id)
-            .maybeSingle();
-
-          // Only auto-submit if form hasn't been submitted yet
-          if (data && !data.form_15min) {
-            console.log("Auto-submitting form as non-fait");
-            await supabase
-              .from("timer_end")
-              .update({ form_15min: "non-fait" })
-              .eq("pdf_id", id);
-
-            // Update local state
-            setForm15Ended(true);
-            setShowForm(false);
-            setTimerNull(true);
-            
-            // If 2h timer was started, show that
-            if (timer2hStarted) {
-              console.log("Moving to 2h timer display");
-            }
-          } else {
-            console.log("Form already submitted, no need for auto-submission", data);
-          }
-        } catch (error) {
-          console.error("Error during auto-submission:", error);
-        }
-        
-        // Clear the interval once we've processed the time expiration
-        clearInterval(iv);
+        setTimerFinished(true);
+        setShowForm(true);
+        setRemainingTime(0);
+      } else {
+        setRemainingTime(left);
       }
     }, 1000);
 
     return () => clearInterval(iv);
-  }, [twentyMinEnd, form15Ended, id, timer2hStarted]);
+  }, [endTime, timerFinished]);
 
   // 2-hour interval
   useEffect(() => {
@@ -410,187 +407,50 @@ const PauseDejeunerTimer = () => {
 
     const iv = setInterval(async () => {
       const now = Date.now();
-      const graceEndTime2h = endTime2h + 1 * 60 * 1000;
-
-      if (now >= graceEndTime2h && !showFinalForm) {
-        try {
-          await supabase
-            .from("timer_end")
-            .update({ form_2h: "non-fait" })
-            .eq("pdf_id", id);
-
-          setShowFinalForm(false);
-          navigate("/listpermisdefeu");
-        } catch (err) {
-          console.error("Error updating form_2h:", err);
-        }
-      } else {
-        const left = endTime2h - now;
-        if (left <= 0) {
-          setShowFinalForm(true);
-          
-          // Start final form timeout if not already started
-          if (!finalFormTimeoutEnd) {
-            const newTimeout = Date.now() + 1 * 60 * 1000; // 1 minute for testing
-            setFinalFormTimeoutEnd(newTimeout);
-            setFinalFormTimeLeft(1 * 60 * 1000);
-            
-            try {
-              await supabase
-                .from("timer_end")
-                .update({ "20minfor2h": new Date(newTimeout).toISOString() })
-                .eq("pdf_id", id);
-              console.log("Started final form timeout", new Date(newTimeout).toISOString());
-            } catch (err) {
-              console.error("Error updating 20minfor2h:", err);
-            }
+      const left = endTime2h - now;
+      if (left <= 0) {
+        setShowFinalForm(true);
+        
+        // Auto-submit 15min as non-fait when 2h expires
+        if (!form15Ended) {
+          try {
+            await supabase
+              .from("timer_end")
+              .update({ form_15min: "non-fait" })
+              .eq("pdf_id", id);
+            setForm15Ended(true);
+            setShowForm(false);
+          } catch (err) {
+            console.error("Error updating form_15min:", err);
           }
         }
-        setRemainingTime2h(Math.max(0, left));
+        setRemainingTime2h(0);
+      } else {
+        if (!showForm && !showFormDej) {
+          setRemainingTime2h(left);
+        }
       }
     }, 1000);
 
     return () => clearInterval(iv);
-  }, [endTime2h, showFinalForm, id, navigate, finalFormTimeoutEnd]);
+  }, [endTime2h, form15Ended, id, showForm, showFormDej]);
 
   // 15-min Pause déjeuner interval
   useEffect(() => {
-    if (!endTimeDej) return;
+    if (!endTimeDej || lunchDisabled) return;
 
-    const iv = setInterval(async () => {
+    const iv = setInterval(() => {
       const now = Date.now();
-      const graceEndTimeDej = endTimeDej + 1 * 60 * 1000;
-
-      if (now >= graceEndTimeDej && !lunchDisabled) {
-        try {
-          await supabase
-            .from("timer_end")
-            .update({ form_15min_dejeuner: "non-fait" })
-            .eq("pdf_id", id);
-
-          setLunchDisabled(true);
-          setShowFormDej(false);
-        } catch (err) {
-          console.error("Error updating form_15min_dejeuner:", err);
-        }
-      } else {
-        const left = endTimeDej - now;
-        if (left <= 0) {
-          setTimerDejStarted(false);
-          setShowFormDej(true);
-          
-          // Start lunch form timeout if not already started
-          if (!lunchFormTimeoutEnd) {
-            const newTimeout = Date.now() + 1 * 60 * 1000; // 1 minute for testing
-            setLunchFormTimeoutEnd(newTimeout);
-            setLunchFormTimeLeft(1 * 60 * 1000);
-            
-            try {
-              await supabase
-                .from("timer_end")
-                .update({ "20minfordej": new Date(newTimeout).toISOString() })
-                .eq("pdf_id", id);
-              console.log("Started lunch form timeout", new Date(newTimeout).toISOString());
-            } catch (err) {
-              console.error("Error updating 20minfordej:", err);
-            }
-          }
-        }
-        setRemainingTimeDej(Math.max(0, left));
+      const left = endTimeDej - now;
+      if (left <= 0 && !lunchDisabled) {
+        setTimerDejStarted(false);
+        setShowFormDej(true);
       }
+      setRemainingTimeDej(Math.max(0, left));
     }, 1000);
 
     return () => clearInterval(iv);
-  }, [endTimeDej, lunchDisabled, id, lunchFormTimeoutEnd]);
-
-  // Updated timer for lunch form auto-submission to use DB value
-  useEffect(() => {
-    if (!showFormDej || lunchDisabled || !lunchFormTimeoutEnd) return;
-    
-    console.log("Running lunch form countdown from DB timer");
-    
-    const iv = setInterval(async () => {
-      const now = Date.now();
-      const left = lunchFormTimeoutEnd - now;
-      
-      // Prevent negative values
-      const adjustedLeft = Math.max(0, left);
-      console.log("Lunch form timeout: Time left:", Math.round(adjustedLeft/1000), "seconds");
-      setLunchFormTimeLeft(adjustedLeft);
-      
-      if (left <= 0) {
-        console.log("Lunch form timeout - auto-submitting as non-fait");
-        try {
-          // Check current form status
-          const { data } = await supabase
-            .from("timer_end")
-            .select("form_15min_dejeuner")
-            .eq("pdf_id", id)
-            .maybeSingle();
-            
-          if (data && !data.form_15min_dejeuner) {
-            await supabase
-              .from("timer_end")
-              .update({ form_15min_dejeuner: "non-fait" })
-              .eq("pdf_id", id);
-              
-            setLunchDisabled(true);
-            setShowFormDej(false);
-            setTimerDejStarted(false);
-          }
-        } catch (error) {
-          console.error("Error during lunch form auto-submission:", error);
-        }
-        clearInterval(iv);
-      }
-    }, 1000);
-    
-    return () => clearInterval(iv);
-  }, [showFormDej, id, lunchDisabled, lunchFormTimeoutEnd]);
-  
-  // Updated timer for final form auto-submission to use DB value
-  useEffect(() => {
-    if (!showFinalForm || !finalFormTimeoutEnd) return;
-    
-    console.log("Running final form countdown from DB timer");
-    
-    const iv = setInterval(async () => {
-      const now = Date.now();
-      const left = finalFormTimeoutEnd - now;
-      
-      // Prevent negative values
-      const adjustedLeft = Math.max(0, left);
-      console.log("Final form timeout: Time left:", Math.round(adjustedLeft/1000), "seconds");
-      setFinalFormTimeLeft(adjustedLeft);
-      
-      if (left <= 0) {
-        console.log("Final form timeout - auto-submitting as non-fait");
-        try {
-          // Check current form status
-          const { data } = await supabase
-            .from("timer_end")
-            .select("form_2h")
-            .eq("pdf_id", id)
-            .maybeSingle();
-            
-          if (data && !data.form_2h) {
-            await supabase
-              .from("timer_end")
-              .update({ form_2h: "non-fait" })
-              .eq("pdf_id", id);
-              
-            setShowFinalForm(false);
-            navigate("/listpermisdefeu");
-          }
-        } catch (error) {
-          console.error("Error during final form auto-submission:", error);
-        }
-        clearInterval(iv);
-      }
-    }, 1000);
-    
-    return () => clearInterval(iv);
-  }, [showFinalForm, id, navigate, finalFormTimeoutEnd]);
+  }, [endTimeDej, lunchDisabled]);
 
   // Format helper
   const formatTime = ms => {
@@ -656,17 +516,41 @@ const PauseDejeunerTimer = () => {
     }
   };
 
-  // Common function for form validation
-  const validateForm = (date, type, equipement, intervenant, result) => {
-    if (!date || !type || !equipement || !intervenant || !result) {
-      alert("Veuillez remplir tous les champs.");
-      return false;
+  // Handle finishing lunch break
+  const handleFinirPause = async () => {
+    try {
+      const finPauseTime = new Date().toISOString();
+      const { error } = await supabase
+        .from("timer_end")
+        .update({ fin_pause: finPauseTime })
+        .eq("pdf_id", id);
+      
+      if (!error) {
+        setFinPause(finPauseTime);
+        setShowFinPauseButton(false);
+        setTimerNull(true);
+        console.log("Lunch break ended successfully");
+      } else {
+        console.error("Error ending lunch break:", error);
+        alert("Erreur lors de la fin de la pause.");
+      }
+    } catch (err) {
+      console.error("Error in handleFinirPause:", err);
+      alert("Une erreur s'est produite.");
     }
-    return true;
   };
 
-  // Submit verification form
-  const submitVerificationForm = async (date, type, equipement, intervenant, result, formType, redirectAfter = true) => {
+  // Common function for form validation
+const validateForm = (date, equipement, intervenant, result) => {
+  if (!date || !equipement || !intervenant || !result) {
+    alert("Veuillez remplir tous les champs.");
+    return false;
+  }
+  return true;
+};
+
+  // Submit verification form with anomaly handling
+const submitVerificationForm = async (date, type, equipement, intervenant, result, motif, formType, redirectAfter = true) => {
     try {
       // Insert into verification_form table
       const { error: insertError } = await supabase
@@ -677,6 +561,7 @@ const PauseDejeunerTimer = () => {
           equipement,
           intervenant,
           result,
+          motif: result === "Anomalie" ? motif : null,
           pdf_id: id,
           timer_end_id: timerId,
         });
@@ -687,27 +572,82 @@ const PauseDejeunerTimer = () => {
         return false;
       }
 
-      // Update status in timer_end table
-      const updateField = 
-        formType === "15min" ? "form_15min" : 
-        formType === "dejeuner" ? "form_15min_dejeuner" : "form_2h";
-      
-      const { error: updateError } = await supabase
-        .from("timer_end")
-        .update({ [updateField]: "done" })
-        .eq("pdf_id", id);
+      // Handle anomaly vs RAS logic
+      if (result === "Anomalie") {
+        // Don't update timer_end status, restart timers instead
+        if (formType === "15min") {
+          await restart15MinTimer();
+          // Also restart 2h timer when 15min has anomaly
+          await restart2HTimer();
+        } else if (formType === "dejeuner") {
+          await restartLunchTimer();
+        } else if (formType === "2h") {
+          // Restart both timers for 2h anomaly
+          await restart15MinTimer();
+          await restart2HTimer();
+        }
+        
+        // Clear form data
+        if (formType === "15min") {
+          setFirstDate("");
+          setFirstEquipement("");
+          setFirstIntervenant("");
+          setFirstResult("");
+        } else if (formType === "dejeuner") {
+          setDejDate("");
+          setDejEquipement("");
+          setDejIntervenant("");
+          setDejResult("");
+        } else if (formType === "2h") {
+          setFinalDate("");
+          setFinalEquipement("");
+          setFinalIntervenant("");
+          setFinalResult("");
+        }
+        
+        return true;
+      } else if (result === "RAS") {
+        // Normal flow - update status in timer_end table
+        const updateField = 
+          formType === "15min" ? "form_15min" : 
+          formType === "dejeuner" ? "form_15min_dejeuner" : "form_2h";
+        
+        const { error: updateError } = await supabase
+          .from("timer_end")
+          .update({ [updateField]: "done" })
+          .eq("pdf_id", id);
 
-      if (updateError) {
-        console.error("Update error:", updateError);
-        alert("Erreur lors de la mise à jour.");
-        return false;
+        if (updateError) {
+          console.error("Update error:", updateError);
+          alert("Erreur lors de la mise à jour.");
+          return false;
+        }
+
+  if (formType === "2h" && result === "RAS") {
+    const { error: statusError } = await supabase
+      .from("permis_de_feu")
+      .update({ status: "archived" })
+      .eq("id", id);
+
+    if (statusError) {
+      console.error("Error updating permis_de_feu status:", statusError);
+      // You might want to show an error message here
+    }
+  }
+
+
+        
+        if (redirectAfter && formType === "2h") {
+          navigate("/listpermisdefeu");
+        }
+
+
+
+
+
+        
+        return true;
       }
-      
-      if (redirectAfter) {
-        navigate("/listpermisdefeu");
-      }
-      
-      return true;
     } catch (err) {
       console.error("Error in submitVerificationForm:", err);
       alert("Une erreur s'est produite.");
@@ -719,40 +659,36 @@ const PauseDejeunerTimer = () => {
   const handleSubmit = async e => {
     e.preventDefault();
     
-    if (!validateForm(firstDate, firstType, firstEquipement, firstIntervenant, firstResult)) {
-      return;
-    }
+const autoEquipement = equipements.length > 0 ? equipements[0].id : "";
+if (!validateForm(firstDate, autoEquipement, firstIntervenant, firstResult)) {
+  return;
+}
+    
     
     const success = await submitVerificationForm(
       firstDate, 
-      firstType, 
-      firstEquipement, 
+      "15min",
+      autoEquipement, 
       firstIntervenant, 
       firstResult, 
+        firstMotif,  // Add this
+
       "15min",
-      false // Don't redirect after this form
+      false
     );
     
     if (success) {
       console.log("Successfully submitted 15-min form");
-      setShowForm(false);
-      setForm15Ended(true);
-      setTimerNull(true);
-      
-      // Clear the 20-min grace period state
-      setTwentyMinStarted(false);
-      setTwentyMinEnd(null);
-      setTwentyMinLeft(null);
-      
-      // Clear the DB record for 20min timer
-      try {
-        await supabase
-          .from("timer_end")
-          .update({ "20min": null })
-          .eq("pdf_id", id);
-        console.log("Cleared 20min timer in DB");
-      } catch (error) {
-        console.error("Error clearing 20min timer:", error);
+      if (firstResult === "RAS") {
+        setShowForm(false);
+        setForm15Ended(true);
+        setTimerNull(true);
+          setFirstMotif("");  // Add this
+
+      }
+      // If anomaly, timers are already restarted, just hide the form
+      if (firstResult === "Anomalie") {
+        setShowForm(false);
       }
     }
   };
@@ -761,40 +697,39 @@ const PauseDejeunerTimer = () => {
   const handleSubmitDej = async e => {
     e.preventDefault();
     
-    if (!validateForm(dejDate, dejType, dejEquipement, dejIntervenant, dejResult)) {
-      return;
-    }
+      const autoEquipement = equipements.length > 0 ? equipements[0].id : "";
+  if (!validateForm(dejDate, autoEquipement, dejIntervenant, dejResult)) {
+    return;
+  }
     
     const success = await submitVerificationForm(
       dejDate, 
-      dejType, 
-      dejEquipement, 
+      "dejeuner 15min",
+      autoEquipement, 
       dejIntervenant, 
       dejResult, 
+        dejMotif,  // Add this
+
       "dejeuner",
-      false // Don't redirect after this form
+      false
     );
     
     if (success) {
       console.log("Successfully submitted lunch form");
-      setShowFormDej(false);
-      setTimerDejStarted(false);
-      setLunchDisabled(true);
-      
-      // Clear the lunch form timeout state
-      setLunchFormTimeoutEnd(null);
-      setLunchFormTimeLeft(null);
-      
-      // Clear the DB record for 20minfordej timer
-      try {
-        await supabase
-          .from("timer_end")
-          .update({ "20minfordej": null })
-          .eq("pdf_id", id);
-        console.log("Cleared 20minfordej timer in DB");
-      } catch (error) {
-        console.error("Error clearing 20minfordej timer:", error);
+      if (dejResult === "RAS") {
+        setShowFormDej(false);
+        setTimerDejStarted(false);
+        setLunchDisabled(true);
+        if (!finPause) {
+          setShowFinPauseButton(true);
+        }
       }
+      // If anomaly, timer is already restarted, just hide the form
+      if (dejResult === "Anomalie") {
+        setShowFormDej(false);
+      }
+        setDejMotif("");  // Add this
+
     }
   };
 
@@ -802,144 +737,48 @@ const PauseDejeunerTimer = () => {
   const handleFinalForm = async e => {
     e.preventDefault();
     
-    if (!validateForm(finalDate, finalType, finalEquipement, finalIntervenant, finalResult)) {
-      return;
-    }
+    const autoEquipement = equipements.length > 0 ? equipements[0].id : "";
+  if (!validateForm(finalDate, autoEquipement, finalIntervenant, finalResult)) {
+    return;
+  }
     
     const success = await submitVerificationForm(
       finalDate, 
-      finalType, 
-      finalEquipement, 
+      "2h",
+      autoEquipement, 
       finalIntervenant, 
       finalResult, 
+        finalMotif,  // Add this
+
       "2h",
-      true // Redirect after this form (it's the final form)
+      finalResult === "RAS" // Only redirect if RAS
     );
     
     if (success) {
       console.log("Successfully submitted final form");
-      
-      // Clear all timers and states
-      setShowFinalForm(false);
-      setTimer2hStarted(false);
-      setEndTime2h(null);
-      setRemainingTime2h(null);
-      setFinalFormTimeoutEnd(null);
-      setFinalFormTimeLeft(null);
-      
-      // Clear the DB record for 20minfor2h timer
-      try {
-        await supabase
-          .from("timer_end")
-          .update({ "20minfor2h": null })
-          .eq("pdf_id", id);
-        console.log("Cleared 20minfor2h timer in DB");
-      } catch (error) {
-        console.error("Error clearing 20minfor2h timer:", error);
+      if (finalResult === "RAS") {
+        setShowFinalForm(false);
+        setTimer2hStarted(false);
+        setEndTime2h(null);
+        setRemainingTime2h(null);
       }
-      
-      // The redirect happens in submitVerificationForm
+      // If anomaly, timers are already restarted, just hide the form
+      if (finalResult === "Anomalie") {
+        setShowFinalForm(false);
+      }
+        setFinalMotif("");  // Add this
+
     }
   };
 
   // Generic Form Component - reused for all forms
-  const FormComponent = ({ 
-    title, 
-    date, setDate, 
-    type, setType, 
-    equipement, setEquipement,
-    intervenant, setIntervenant,
-    result, setResult,
-    onSubmit,
-    timeLeft
-  }) => (
-    <>
-      {timeLeft > 0 && (
-        <div className="mb-2 text-red-500 font-semibold">
-          Temps restant: {Math.floor(timeLeft / 60000).toString().padStart(2, "0")}:{Math.floor((timeLeft % 60000) / 1000).toString().padStart(2, "0")}
-        </div>
-      )}
-      <form onSubmit={onSubmit} className="flex flex-col gap-3">
-        <h2 className="font-semibold text-xl">{title}</h2>
 
-        {/* Date */}
-        <input 
-          type="datetime-local" 
-          value={date} 
-          onChange={e => setDate(e.target.value)} 
-          className="border p-2 rounded" 
-          required 
-        />
 
-        {/* Type */}
-        <select 
-          value={type} 
-          onChange={e => setType(e.target.value)} 
-          className="border p-2 rounded" 
-          required
-        >
-          <option value="">Sélectionnez le type</option>
-          <option value="15min">15 min</option>
-          <option value="dejeuner 15min">Déjeuner 15 min</option>
-          <option value="2h">2 h</option>
-        </select>
-
-        {/* Equipement */}
-        <select 
-          value={equipement} 
-          onChange={e => setEquipement(e.target.value)} 
-          className="border p-2 rounded" 
-          required
-        >
-          <option value="">Sélectionnez l'équipement</option>
-          {equipements.map(zone => (
-            <option key={zone.id} value={zone.id}>{zone.name}</option>
-          ))}
-        </select>
-
-        {/* Intervenant */}
-        <select 
-          value={intervenant} 
-          onChange={e => setIntervenant(e.target.value)} 
-          className="border p-2 rounded" 
-          required
-        >
-          <option value="">Sélectionnez l'intervenant</option>
-          {intervenants.map(person => (
-            <option key={person.id} value={person.id}>{person.name}</option>
-          ))}
-        </select>
-
-        {/* Result */}
-        <select 
-          value={result} 
-          onChange={e => setResult(e.target.value)} 
-          className="border p-2 rounded" 
-          required
-        >
-          <option value="">Sélectionnez le résultat</option>
-          <option value="RAS">RAS</option>
-          <option value="Anomalie">Anomalie</option>
-        </select>
-
-        <button type="submit" className="bg-green-600 text-white px-4 py-2 rounded">
-          Soumettre le Rapport
-        </button>
-      </form>
-    </>
-  );
-
-  // Improved renderContent function to ensure clear state transitions
+  // Improved renderContent function
   const renderContent = () => {
     if (loading) {
       return <div className="text-gray-500">Chargement…</div>;
     }
-
-    // Priority order for display:
-    // 1. Final form (if it's time for that)
-    // 2. Lunch form (if it's showing)
-    // 3. 15-min form (if it's showing)
-    // 4. Timer displays based on state
 
     // Final form has highest priority
     if (showFinalForm) {
@@ -947,12 +786,13 @@ const PauseDejeunerTimer = () => {
         <FormComponent 
           title="Rapport de Fin"
           date={finalDate} setDate={setFinalDate}
-          type={finalType} setType={setFinalType}
-          equipement={finalEquipement} setEquipement={setFinalEquipement}
           intervenant={finalIntervenant} setIntervenant={setFinalIntervenant}
           result={finalResult} setResult={setFinalResult}
+            motif={finalMotif} setMotif={setFinalMotif}  // Add this
+  equipements={equipements}      // ✅ Add this
+  intervenants={intervenants}    // ✅ Add this
           onSubmit={handleFinalForm}
-          timeLeft={finalFormTimeLeft}
+          formType="2h"
         />
       );
     }
@@ -963,12 +803,13 @@ const PauseDejeunerTimer = () => {
         <FormComponent 
           title="Rapport du Pause"
           date={dejDate} setDate={setDejDate}
-          type={dejType} setType={setDejType}
-          equipement={dejEquipement} setEquipement={setDejEquipement}
           intervenant={dejIntervenant} setIntervenant={setDejIntervenant}
           result={dejResult} setResult={setDejResult}
+            motif={dejMotif} setMotif={setDejMotif}  // Add this
+  equipements={equipements}      // ✅ Add this
+  intervenants={intervenants}    // ✅ Add this
           onSubmit={handleSubmitDej}
-          timeLeft={lunchFormTimeLeft}
+          formType="dejeuner"
         />
       );
     }
@@ -979,17 +820,31 @@ const PauseDejeunerTimer = () => {
         <FormComponent 
           title="Rapport du verification 15min"
           date={firstDate} setDate={setFirstDate}
-          type={firstType} setType={setFirstType}
-          equipement={firstEquipement} setEquipement={setFirstEquipement}
           intervenant={firstIntervenant} setIntervenant={setFirstIntervenant}
           result={firstResult} setResult={setFirstResult}
+            motif={firstMotif} setMotif={setFirstMotif}  // Add this
+  equipements={equipements}      // ✅ Add this
+  intervenants={intervenants}    // ✅ Add this
           onSubmit={handleSubmit}
-          timeLeft={twentyMinLeft}
+          formType="15min"
         />
       );
     }
     
-    // Now timer displays based on state
+    // Show fin pause button if needed
+    if (showFinPauseButton && !finPause) {
+      return (
+        <div className="flex flex-col gap-4">
+          <p className="text-lg text-green-600">Pause déjeuner terminée avec succès!</p>
+          <button
+            onClick={handleFinirPause}
+            className="bg-orange-600 text-white px-4 py-2 rounded hover:bg-orange-700"
+          >
+            Finir la Pause
+          </button>
+        </div>
+      );
+    }
     
     // 15-min and 2h timers running together
     if (!timerNull && !timerFinished && timer2hStarted && !form15Ended) {
@@ -1010,7 +865,7 @@ const PauseDejeunerTimer = () => {
     if (timerDejStarted && remainingTimeDej) {
       return <p className="text-lg">Pause Déjeuner: {formatTime(remainingTimeDej)}</p>;
     }
-    
+     
     // Initial state - buttons
     if (timerNull) {
       return (
@@ -1042,7 +897,7 @@ const PauseDejeunerTimer = () => {
       return <p className="text-lg">Temps restant: {formatTime(remainingTime)}</p>;
     }
     
-    // Failsafe - should never reach here
+    // Failsafe
     return <p>État inconnu, veuillez rafraîchir la page.</p>;
   };
 

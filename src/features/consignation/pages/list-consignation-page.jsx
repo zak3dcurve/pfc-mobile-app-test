@@ -209,7 +209,7 @@ const ConsignationList = () => {
           </span>
         ) : null,
       sortable: false,
-      width: "70px",
+      width: "20px",
     },
     {
       name: "Date et heure",

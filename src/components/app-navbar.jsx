@@ -15,6 +15,8 @@ const navigation = [
   { name: "Accueil", path: "/home" },
   { name: "Consignation", path: "/consignationlist" },
   { name: "Permis de feu", path: "/listpermisdefeu" },
+  { name: "Planifié", path: "/pdfplanified" },
+
 
 ];
 

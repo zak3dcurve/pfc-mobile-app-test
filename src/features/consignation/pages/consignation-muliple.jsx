@@ -50,23 +50,29 @@ const AddMultiConsignation = () => {
   // Reference for the demandeur signature using SignatureCanvas
   const sigPadDemandeur = useRef(null);
 
-  // Fetch parent consignation info
-  useEffect(() => {
-    const fetchParent = async () => {
-      const { data, error } = await supabase
-        .from("consignations")
-        .select("*, entreprises:entreprises!entreprise_id(name, id)")
-        .eq("id", parentId)
-        .single();
-      if (error) {
-        console.error("Erreur lors de la récupération de la consignation parente :", error);
-      } else {
-        setParentConsignation(data);
-      }
-      setLoadingParent(false);
-    };
-    fetchParent();
-  }, [parentId]);
+ useEffect(() => {
+  const fetchParent = async () => {
+    const { data, error } = await supabase
+      .from("consignations")
+      .select(`
+        *, 
+        entreprise_utilisatrice:entreprises!consignations_entreprise_utilisatrice_id_fkey(name, id),
+        zones(name),
+        consignateur:persons!consignations_consignateur_id_fkey(name)
+      `)
+      .eq("id", parentId)
+      .single();
+      
+    if (error) {
+      console.error("Erreur lors de la récupération de la consignation parente :", error);
+    } else {
+      setParentConsignation(data);
+      console.log("Parent Consignation Data:", data);
+    }
+    setLoadingParent(false);
+  };
+  fetchParent();
+}, [parentId]);
 
   // Fetch entreprises list for the external entreprise selection
   useEffect(() => {
@@ -140,22 +146,54 @@ const AddMultiConsignation = () => {
       return;
     }
     
+  let entrepriseId = selectedEntreprise.value;
+  if (selectedEntreprise.__isNew__) {
+    const { data, error } = await supabase
+      .from("entreprises")
+      .insert({ name: selectedEntreprise.label })
+      .select();
+    if (error) {
+      console.error("Erreur lors de l'insertion de la nouvelle entreprise :", error);
+      alert("Une erreur est survenue lors de la création de l'entreprise.");
+      return;
+    }
+    entrepriseId = data[0].id;
+  }
+  
+  // Handle newly created demandeur
+  let demandeurId = selectedDemandeur.value;
+  if (selectedDemandeur.__isNew__) {
+    const { data, error } = await supabase
+      .from("persons")
+      .insert({ name: selectedDemandeur.label, entreprise_id: entrepriseId })
+      .select();
+    if (error) {
+      console.error("Erreur lors de l'insertion du nouveau demandeur :", error);
+      alert("Une erreur est survenue lors de la création du demandeur.");
+      return;
+    }
+    demandeurId = data[0].id;
+  }
+
+
+
     // Build payload: inherit parent's common data and add new unique data
     const payload = {
       site_id: parentConsignation.site_id,
-      entreprise_utilisatrice_id:parentConsignation.entreprises?.id || null, // New entreprise ID
+      entreprise_utilisatrice_id:parentConsignation.entreprise_utilisatrice?.id || null, // New entreprise ID
       signature_consignateur: parentConsignation.signature_consignateur,
       multi_consignation_id: Number(parentId), // Link this new record to the parent
       date_consignation: parentConsignation.date_consignation,
-      zone_id: parentConsignation.zone_id,
+      zone_id: parentConsignation.zones_id,
       consignateur_id: parentConsignation.consignateur_id,
-      entreprise_id:  selectedEntreprise.value,
+      entreprise_id:  Number(entrepriseId),
       // Unique fields for the multi‑consignation:
       designation_travaux: formData.designation_travaux_multi,
       pdp: formData.pdp_multi,
       cadenas_num: formData.cadenas_num_multi,
+      lockbox: parentConsignation.lockbox,
       // New demandeur and signature
-      demandeur_id: Number(selectedDemandeur.value),
+      demandeur_id: Number(demandeurId),
       signature_demandeur: sigPadDemandeur.current.toDataURL(),
       // Audit and status fields:
       status: parentConsignation.status,
@@ -211,15 +249,15 @@ const AddMultiConsignation = () => {
               </div>
               <div className="flex justify-between">
                 <span className="font-semibold">Zone :</span>
-                <span>{parentConsignation.zone_id || "N/A"}</span>
+                <span>{parentConsignation.zones?.name || "N/A"}</span>
               </div>
               <div className="flex justify-between">
                 <span className="font-semibold">Consignateur :</span>
-                <span>{parentConsignation.consignateur_id || "N/A"}</span>
+                <span>{parentConsignation.consignateur?.name || "N/A"}</span>
               </div>
               <div className="flex justify-between">
                 <span className="font-semibold">Entreprise du consignateur :</span>
-                <span>{parentConsignation.entreprises?.name || "Non défini"}</span>
+                <span>{parentConsignation.entreprise_utilisatrice?.name || "Non défini"}</span>
               </div>
             </div>
           </div>

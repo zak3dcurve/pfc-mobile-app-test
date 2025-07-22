@@ -22,6 +22,9 @@ import PauseDejeunerTimer from './features/permis-de-feu/pages/timer-15min';
 import PermisDeFeuDetails from './features/permis-de-feu/pages/permis_de_feu_details';
 import AddMultiConsignation from './features/consignation/pages/consignation-muliple';
 import MulticonsDetail from './features/consignation/pages/multiconsdetail';
+import ArchivedPermisList from './features/permis-de-feu/pages/archivedpdf';
+import PermisDeFeuPlanified from './features/permis-de-feu/pages/permis-de-feu-planified';
+import AddPermisFeu from './features/permis-de-feu/pages/addPermisDeFeu';
 
 
 
@@ -47,6 +50,12 @@ function App({ className, ...props }) {
       <Route path="/permisdefeudetails/:id" element={<ProtectedRoute><PermisDeFeuDetails/></ProtectedRoute>} />
       <Route path="/multiconsignation/:id" element={<ProtectedRoute><AddMultiConsignation/></ProtectedRoute>} />
       <Route path="/multiconsdetails/:id" element={<ProtectedRoute><MulticonsDetail/></ProtectedRoute>} />
+      <Route path="/multiconsarch" element={<ProtectedRoute><ArchivedPermisList/></ProtectedRoute>} />
+      <Route path="/pdfplanified" element={<ProtectedRoute><PermisDeFeuPlanified /></ProtectedRoute>} />
+      <Route path="/permisdefeu/edit/:id" element={<ProtectedRoute><AddPermisFeu /></ProtectedRoute>} />
+
+
+
 
 
       <Route path="*" element={<Navigate to="/profile" />} />

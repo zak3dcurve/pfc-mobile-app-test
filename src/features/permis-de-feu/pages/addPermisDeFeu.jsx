@@ -1,17 +1,37 @@
 import React, { useState, useEffect, useRef } from "react";
 import CreatableSelect from "react-select/creatable";
-import SignatureCanvas from "react-signature-canvas";
 import { supabase } from "@/features/auth/utils/supabase-client";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import SignaturePad from "signature_pad";
 import { useAuth } from "@/features/auth/utils/auth-context";
 
 const AddPermisFeu = () => {
-  // --------------------------
+  const { id } = useParams(); // Get permit ID from URL for editing
+  const isEditing = Boolean(id);
+  
   // Refs for Signature Canvases
+  const sigPadSurveillance = useRef(null);
+  const signaturePadSurveillance = useRef(null);
+  const sigPadSite = useRef(null);
+  const signaturePadSite = useRef(null);
+
   // --------------------------
-  const sigSurveillanceRef = useRef(null);
-  const sigSiteRef = useRef(null);
+  // State: Loading and Errors
+  // --------------------------
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSavingDraft, setIsSavingDraft] = useState(false);
+  const [isLoadingPermit, setIsLoadingPermit] = useState(isEditing);
+  const [loadedPermisData, setLoadedPermisData] = useState(null); // Store loaded permit data
+  const [errors, setErrors] = useState([]);
+  const [fieldErrors, setFieldErrors] = useState({}); // Field-specific errors
+  
+  // Refs for form sections (for more precise scrolling)
+  const horairesRef = useRef(null);
+  const surveillanceRef = useRef(null);
+  const travauxRef = useRef(null);
+  const siteResponsableRef = useRef(null);
+  const lieuRef = useRef(null);
+  const sourceChaleurRef = useRef(null); // Added ref for source de chaleur section
 
   // --------------------------
   // State: Dropdown Options
@@ -19,8 +39,6 @@ const AddPermisFeu = () => {
   const [personOptions, setPersonOptions] = useState([]);
   const [entrepriseOptions, setEntrepriseOptions] = useState([]);
   const [lieuOptions, setLieuOptions] = useState([]);
-
-  // Checkbox options (these could be static or stored in tables)
   const [sourceChaleurOptions, setSourceChaleurOptions] = useState([]);
   const [facteursAggravantsOptions, setFacteursAggravantsOptions] = useState([]);
   const [mesuresAvOptions, setMesuresAvOptions] = useState([]);
@@ -29,589 +47,980 @@ const AddPermisFeu = () => {
   // --------------------------
   // State: Form Data
   // --------------------------
-  // Datetime fields
   const [heureDebut, setHeureDebut] = useState("");
   const [heureFin, setHeureFin] = useState("");
   const [dejeunerDebut, setDejeunerDebut] = useState("");
   const [dejeunerFin, setDejeunerFin] = useState("");
-
-  // Radio button for entreprise choice ("EE" or "EU")
   const [choixEntreprise, setChoixEntreprise] = useState("");
-
-  // CreatableSelect fields for persons, entreprises, lieux
-  const [selectedSurveillance, setSelectedSurveillance] = useState(null); // resp_surveillance_id
-  const [selectedTravauxPerson, setSelectedTravauxPerson] = useState(null); // for intervenant if needed
-  const [selectedSiteResponsable, setSelectedSiteResponsable] = useState(null); // resp_site_id
-  const [selectedEntrepriseSite, setSelectedEntrepriseSite] = useState(null); // entreprise_resp_site_id
-  const [selectedLieu, setSelectedLieu] = useState(null); // lieu_id
-
-  // Signatures
+  const [selectedSurveillance, setSelectedSurveillance] = useState(null);
+  const [selectedTravauxPerson, setSelectedTravauxPerson] = useState(null);
+  const [selectedSiteResponsable, setSelectedSiteResponsable] = useState(null);
+  const [selectedEntrepriseSite, setSelectedEntrepriseSite] = useState(null);
+  const [selectedLieu, setSelectedLieu] = useState(null);
   const [respSurvSignature, setRespSurvSignature] = useState("");
   const [respSiteSignature, setRespSiteSignature] = useState("");
-
-  // Text field for operation description
   const [operationDescription, setOperationDescription] = useState("");
-
-  // Multi-checkbox selections (for junction tables)
   const [sourceChaleur, setSourceChaleur] = useState([]);
   const [facteursAggravants, setFacteursAggravants] = useState([]);
-  const [mesuresPreventionAv, setMesuresPreventionAv] = useState([]);
-  const [mesuresPreventionPn, setMesuresPreventionPn] = useState([]);
+  const [mesuresPreventionAvSelections, setMesuresPreventionAvSelections] = useState({});
+  const [mesuresPreventionPnSelections, setMesuresPreventionPnSelections] = useState({});
 
+  const navigate = useNavigate();
+  const { entreprise: entrepriseUtilisatrice } = useAuth();
 
+  // --------------------------
+  // Load Existing Permit Data for Editing
+  // --------------------------
+  const loadPermitData = async (permitId) => {
+    try {
+      setIsLoadingPermit(true);
+      
+      // Fetch main permit data
+      const { data: permitData, error: permitError } = await supabase
+        .from("permis_de_feu")
+        .select(`
+          *,
+          responsables:persons!resp_surveillance_id(id, name, entreprise_id),
+          site_responsables:persons!resp_site_id(id, name, entreprise_id),
+          entreprise_sites:entreprises!entreprise_resp_site_id(id, name),
+          zones:zones!lieu_id(id, name)
+        `)
+        .eq("id", permitId)
+        .single();
 
-const navigate = useNavigate();
-// Redirect to the permis de feu list page after successful submission
+      if (permitError) {
+        throw new Error(`Erreur lors du chargement du permis: ${permitError.message}`);
+      }
 
+      // Store the loaded permit data
+      setLoadedPermisData(permitData);
 
-  // New state for measure selections (AVANT and PENDANT)
-const [mesuresPreventionAvSelections, setMesuresPreventionAvSelections] = useState({});
-const [mesuresPreventionPnSelections, setMesuresPreventionPnSelections] = useState({});
+      // Fetch junction table data
+      const [
+        { data: sourcesData, error: sourcesError },
+        { data: facteursData, error: facteursError },
+        { data: mesuresAvData, error: mesuresAvError },
+        { data: mesuresPnData, error: mesuresPnError }
+      ] = await Promise.all([
+        supabase.from("pdf_sch_junction").select("sch_id").eq("pdf_id", permitId),
+        supabase.from("pdf_faggravant_junction").select("faggravant_id").eq("pdf_id", permitId),
+        supabase.from("pdf_mpa_junction").select("mpa, entreprise").eq("pdf", permitId),
+        supabase.from("pdf_mpp_junction").select("mpp, entreprise").eq("pdf", permitId)
+      ]);
 
+      if (sourcesError || facteursError || mesuresAvError || mesuresPnError) {
+        console.warn("Some junction data failed to load");
+      }
 
+      // Populate form fields
+      const formatDateTime = (dateString) => {
+        if (!dateString) return "";
+        const date = new Date(dateString);
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        const hours = String(date.getHours()).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+        return `${year}-${month}-${day}T${hours}:${minutes}`;
+      };
 
-const { entreprise: entrepriseUtilisatrice } = useAuth();
+      setHeureDebut(formatDateTime(permitData.heure_debut));
+      setHeureFin(formatDateTime(permitData.heure_fin));
+      setDejeunerDebut(formatDateTime(permitData.dejeuner_debut));
+      setDejeunerFin(formatDateTime(permitData.dejeuner_fin));
+      setChoixEntreprise(permitData.choix_entreprise || "");
+      setOperationDescription(permitData.operation_description || "");
 
-const handleSurveillanceChange = async (option) => {
-  if (option && option.__isNew__) {
-    // Insert the new person with entreprise_utilisatrice from useAuth
-    const { data, error } = await supabase
-      .from("persons")
-      .insert({ name: option.label, entreprise_id: entrepriseUtilisatrice.id })
-      .select()
-      .maybeSingle();
-    if (!error && data) {
-      const newOption = { value: data.id, label: data.name };
-      setSelectedSurveillance(newOption);
-      // Optionally add the new person to the options list:
-      setPersonOptions((prev) => [...prev, newOption]);
-    } else {
-      console.error("Error inserting new responsable:", error);
+      // Set selected options
+      if (permitData.responsables) {
+        setSelectedSurveillance({
+          value: permitData.responsables.id,
+          label: permitData.responsables.name,
+          entreprise_id: permitData.responsables.entreprise_id
+        });
+      }
+
+      if (permitData.site_responsables) {
+        setSelectedSiteResponsable({
+          value: permitData.site_responsables.id,
+          label: permitData.site_responsables.name,
+          entreprise_id: permitData.site_responsables.entreprise_id
+        });
+      }
+
+      if (permitData.entreprise_sites) {
+        setSelectedEntrepriseSite({
+          value: permitData.entreprise_sites.id,
+          label: permitData.entreprise_sites.name
+        });
+      }
+
+      if (permitData.zones) {
+        setSelectedLieu({
+          value: permitData.zones.id,
+          label: permitData.zones.name
+        });
+      }
+
+      // Set junction table data
+      if (sourcesData) {
+        setSourceChaleur(sourcesData.map(item => item.sch_id));
+      }
+
+      if (facteursData) {
+        setFacteursAggravants(facteursData.map(item => item.faggravant_id));
+      }
+
+      // Set mesures prevention selections
+      if (mesuresAvData) {
+        const avSelections = {};
+        mesuresAvData.forEach(item => {
+          if (!avSelections[item.mpa]) {
+            avSelections[item.mpa] = { EE: false, EU: false };
+          }
+          if (item.entreprise === "E.E") {
+            avSelections[item.mpa].EE = true;
+          } else if (item.entreprise === "E.U") {
+            avSelections[item.mpa].EU = true;
+          } else if (item.entreprise === "BOTH") {
+            avSelections[item.mpa].EE = true;
+            avSelections[item.mpa].EU = true;
+          }
+        });
+        setMesuresPreventionAvSelections(avSelections);
+      }
+
+      if (mesuresPnData) {
+        const pnSelections = {};
+        mesuresPnData.forEach(item => {
+          if (!pnSelections[item.mpp]) {
+            pnSelections[item.mpp] = { EE: false, EU: false };
+          }
+          if (item.entreprise === "E.E") {
+            pnSelections[item.mpp].EE = true;
+          } else if (item.entreprise === "E.U") {
+            pnSelections[item.mpp].EU = true;
+          } else if (item.entreprise === "BOTH") {
+            pnSelections[item.mpp].EE = true;
+            pnSelections[item.mpp].EU = true;
+          }
+        });
+        setMesuresPreventionPnSelections(pnSelections);
+      }
+
+      // Handle signatures
+      if (permitData.resp_surv_signature) {
+        setRespSurvSignature(permitData.resp_surv_signature);
+      }
+
+      if (permitData.resp_site_signature) {
+        setRespSiteSignature(permitData.resp_site_signature);
+      }
+
+    } catch (error) {
+      console.error("Error loading permit data:", error);
+      alert(`Erreur lors du chargement du permis: ${error.message}`);
+      navigate("/listpermisdefeu");
+    } finally {
+      setIsLoadingPermit(false);
     }
-  } else {
-    setSelectedSurveillance(option);
-  }
-};
+  };
 
-useEffect(() => {
-  if (entrepriseOptions.length > 0 && !selectedEntrepriseSite) {
-    setSelectedEntrepriseSite(entrepriseOptions[0]);
-  }
-}, [entrepriseOptions, selectedEntrepriseSite]);
+  // Load signatures into canvas after signature pads are ready
+  useEffect(() => {
+    if (loadedPermisData && !isLoadingPermit) {
+      const loadSignatures = () => {
+        if (loadedPermisData.resp_surv_signature && signaturePadSurveillance.current) {
+          try {
+            signaturePadSurveillance.current.fromDataURL(loadedPermisData.resp_surv_signature);
+          } catch (error) {
+            console.warn("Failed to load surveillance signature:", error);
+          }
+        }
 
-const handleSiteResponsableChange = async (option) => {
+        if (loadedPermisData.resp_site_signature && signaturePadSite.current) {
+          try {
+            signaturePadSite.current.fromDataURL(loadedPermisData.resp_site_signature);
+          } catch (error) {
+            console.warn("Failed to load site signature:", error);
+          }
+        }
+      };
+
+      // Load signatures after a short delay to ensure pads are ready
+      const timer = setTimeout(loadSignatures, 200);
+      return () => clearTimeout(timer);
+    }
+  }, [loadedPermisData, isLoadingPermit]);
+
+  // --------------------------
+  // Signature Pad Setup
+  // --------------------------
+  useEffect(() => {
+    const setupSignaturePad = (canvasRef, signaturePadRef) => {
+      if (canvasRef.current) {
+        const canvas = canvasRef.current;
+        const ratio = Math.max(window.devicePixelRatio || 1, 1);
+        canvas.width = canvas.offsetWidth * ratio;
+        canvas.height = canvas.offsetHeight * ratio;
+        canvas.getContext("2d").scale(ratio, ratio);
+        
+        // Clear any existing signature pad
+        if (signaturePadRef.current) {
+          signaturePadRef.current.off();
+        }
+        
+        signaturePadRef.current = new SignaturePad(canvas, {
+          minWidth: 1,
+          maxWidth: 3,
+          penColor: "black",
+        });
+      }
+    };
+
+    // Small delay to ensure DOM is ready
+    const timer = setTimeout(() => {
+      setupSignaturePad(sigPadSurveillance, signaturePadSurveillance);
+      setupSignaturePad(sigPadSite, signaturePadSite);
+    }, 100);
+
+    return () => clearTimeout(timer);
+  }, [loadedPermisData]); // Re-setup when permit data is loaded
+
+  // Show database/network errors as alerts (not validation errors)
+  useEffect(() => {
+    if (errors.length > 0) {
+      alert(`Erreur: ${errors.join('\n')}`);
+    }
+  }, [errors]);
+
+  // --------------------------
+  // Validation Function
+  // --------------------------
+  const validateForm = () => {
+    const newFieldErrors = {};
+    let firstErrorRef = null;
+
+    if (!heureDebut) {
+      newFieldErrors.heureDebut = "Ce champ est requis";
+      if (!firstErrorRef) firstErrorRef = horairesRef;
+    }
+    if (!heureFin) {
+      newFieldErrors.heureFin = "Ce champ est requis";
+      if (!firstErrorRef) firstErrorRef = horairesRef;
+    }
+    if (!choixEntreprise) {
+      newFieldErrors.choixEntreprise = "Veuillez sélectionner E.E ou E.U";
+      if (!firstErrorRef) firstErrorRef = surveillanceRef;
+    }
+    if (!selectedSurveillance) {
+      newFieldErrors.selectedSurveillance = "Veuillez sélectionner un responsable";
+      if (!firstErrorRef) firstErrorRef = surveillanceRef;
+    }
+    
+if (!selectedTravauxPerson) {
+  newFieldErrors.selectedTravauxPerson = "Veuillez sélectionner une personne";
+  if (!firstErrorRef) firstErrorRef = travauxRef;
+}
+    if (!selectedEntrepriseSite) {
+      newFieldErrors.selectedEntrepriseSite = "Veuillez sélectionner une entreprise";
+      if (!firstErrorRef) firstErrorRef = siteResponsableRef;
+    }
+    if (!selectedLieu) {
+      newFieldErrors.selectedLieu = "Veuillez sélectionner un lieu";
+      if (!firstErrorRef) firstErrorRef = lieuRef;
+    }
+    if (!operationDescription.trim()) {
+      newFieldErrors.operationDescription = "Veuillez décrire l'opération à effectuer";
+      if (!firstErrorRef) firstErrorRef = lieuRef;
+    }
+
+    // Validate source de chaleur - at least one must be selected
+    if (sourceChaleur.length === 0) {
+      newFieldErrors.sourceChaleur = "Veuillez sélectionner au moins une source de chaleur";
+      if (!firstErrorRef) firstErrorRef = sourceChaleurRef;
+    }
+
+    // Check if both signatures are provided
+    const hasSurvSignature = signaturePadSurveillance.current && !signaturePadSurveillance.current.isEmpty();
+    const hasSiteSignature = signaturePadSite.current && !signaturePadSite.current.isEmpty();
+    
+    if (!hasSurvSignature) {
+      newFieldErrors.signatureSurveillance = "Veuillez signer ce champ";
+      if (!firstErrorRef) firstErrorRef = surveillanceRef;
+    }
+    
+    if (!hasSiteSignature) {
+      newFieldErrors.signatureSite = "Veuillez signer ce champ";
+      if (!firstErrorRef) firstErrorRef = siteResponsableRef;
+    }
+
+    // Validate datetime order
+    if (heureDebut && heureFin) {
+      const debut = new Date(heureDebut);
+      const fin = new Date(heureFin);
+      if (debut >= fin) {
+        newFieldErrors.heureFin = "L'heure de fin doit être après l'heure de début";
+        if (!firstErrorRef) firstErrorRef = horairesRef;
+      }
+    }
+
+    setFieldErrors(newFieldErrors);
+    
+    // Auto-scroll to first error section if validation fails
+    if (Object.keys(newFieldErrors).length > 0 && firstErrorRef?.current) {
+      setTimeout(() => {
+        firstErrorRef.current.scrollIntoView({ 
+          behavior: 'smooth', 
+          block: 'center',
+          inline: 'nearest'
+        });
+      }, 100);
+    }
+    
+    return Object.keys(newFieldErrors).length === 0;
+  };
+
+  // --------------------------
+  // Handle Changes with Error Clearing
+  // --------------------------
+  const clearFieldError = (fieldName) => {
+    setFieldErrors(prev => {
+      const newFieldErrors = { ...prev };
+      delete newFieldErrors[fieldName];
+      return newFieldErrors;
+    });
+  };
+
+  const handleSurveillanceChange = async (option) => {
+    clearFieldError('selectedSurveillance');
+    
+    if (option && option.__isNew__) {
+      try {
+        const { data, error } = await supabase
+          .from("persons")
+          .insert({ name: option.label, entreprise_id: entrepriseUtilisatrice.id })
+          .select()
+          .maybeSingle();
+        
+        if (error) throw error;
+        
+        if (data) {
+          const newOption = { value: data.id, label: data.name, entreprise_id: data.entreprise_id };
+          setSelectedSurveillance(newOption);
+          setPersonOptions((prev) => [...prev, newOption]);
+        }
+      } catch (error) {
+        console.error("Error inserting new responsable:", error);
+        alert(`Erreur lors de l'ajout du responsable: ${error.message}`);
+      }
+    } else {
+      setSelectedSurveillance(option);
+    }
+  };
+
+
+const handleTravauxPersonChange = async (option) => {
+  clearFieldError('selectedTravauxPerson');
+  
   if (option && option.__isNew__) {
     if (!selectedEntrepriseSite) {
       alert("Veuillez d'abord sélectionner une entreprise.");
       return;
     }
-    // Insert the new person with the selected entreprise's id
-    const { data, error } = await supabase
-      .from("persons")
-      .insert({ name: option.label, entreprise_id: selectedEntrepriseSite.value })
-      .select()
-      .maybeSingle();
-    if (!error && data) {
-      const newOption = { value: data.id, label: data.name };
-      setSelectedSiteResponsable(newOption);
-      // Optionally update personOptions:
-      setPersonOptions((prev) => [...prev, newOption]);
-    } else {
-      console.error("Error inserting new site responsable:", error);
-    }
-  } else {
-    setSelectedSiteResponsable(option);
-  }
-};
-
-const filteredPersonOptionsForSurveillance = personOptions.filter(
-  (p) => p.entreprise_id === entrepriseUtilisatrice.id
-);
-
-const handleEntrepriseChange = async (option) => {
-  if (option && option.__isNew__) {
-    // Insert new entreprise into Supabase
-    const { data, error } = await supabase
-      .from("entreprises")
-      .insert({ name: option.label })
-      .select()
-      .maybeSingle();
-    if (!error && data) {
-      const newOption = { value: data.id, label: data.name };
-      setSelectedEntrepriseSite(newOption);
-      setEntrepriseOptions((prev) => [...prev, newOption]);
-    } else {
-      console.error("Erreur lors de l'insertion de la nouvelle entreprise :", error);
-    }
-  } else {
-    setSelectedEntrepriseSite(option);
-  }
-};
-
-
-const handleZoneChange = async (option) => {
-  if (option && option.__isNew__) {
-    // Insert new zone into Supabase (table: zones)
-    const { data, error } = await supabase
-      .from("zones")
-      .insert({ name: option.label })
-      .select()
-      .maybeSingle();
-    if (!error && data) {
-      const newOption = { value: data.id, label: data.name };
-      setSelectedLieu(newOption);
-      setLieuOptions((prev) => [...prev, newOption]);
-    } else {
-      console.error("Erreur lors de l'insertion de la nouvelle zone :", error);
-    }
-  } else {
-    setSelectedLieu(option);
-  }
-};
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// For the responsable (surveillance) signature
-const sigPadSurveillance = useRef(null);
-const signaturePadSurveillance = useRef(null);
-
-// For the site signature
-const sigPadSite = useRef(null);
-const signaturePadSite = useRef(null);
-
-useEffect(() => {
-  if (sigPadSurveillance.current) {
-    const canvas = sigPadSurveillance.current;
-    const ratio = Math.max(window.devicePixelRatio || 1, 1);
-    canvas.width = canvas.offsetWidth * ratio;
-    canvas.height = canvas.offsetHeight * ratio;
-    canvas.getContext("2d").scale(ratio, ratio);
-    signaturePadSurveillance.current = new SignaturePad(canvas, {
-      minWidth: 1,
-      maxWidth: 3,
-      penColor: "black",
-    });
-  }
-  if (sigPadSite.current) {
-    const canvas = sigPadSite.current;
-    const ratio = Math.max(window.devicePixelRatio || 1, 1);
-    canvas.width = canvas.offsetWidth * ratio;
-    canvas.height = canvas.offsetHeight * ratio;
-    canvas.getContext("2d").scale(ratio, ratio);
-    signaturePadSite.current = new SignaturePad(canvas, {
-      minWidth: 1,
-      maxWidth: 3,
-      penColor: "black",
-    });
-  }
-}, []); // Run once on mount
-
-
-
-const clearSignatureSurveillance = () => {
-  if (signaturePadSurveillance.current) {
-    signaturePadSurveillance.current.clear();
-  }
-};
-
-const clearSignatureSite = () => {
-  if (signaturePadSite.current) {
-    signaturePadSite.current.clear();
-  }
-};
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// Helper function to toggle measure selection for a given measure and type
-const toggleMeasureSelection = (measureId, type, currentSelections, setSelections) => {
-  setSelections((prev) => {
-    const current = prev[measureId] || { EE: false, EU: false };
-    return {
-      ...prev,
-      [measureId]: {
-        ...current,
-        [type]: !current[type],
-      },
-    };
-  });
-};
-
-
-
-  // --------------------------
-  // useEffect: Fetch Options from Supabase
-  // --------------------------
-  useEffect(() => {
-    const fetchOptions = async () => {
-      // Fetch persons
-      const { data: personsData, error: personsError } = await supabase
+    
+    try {
+      const { data, error } = await supabase
         .from("persons")
-        .select("*");
-      if (!personsError && personsData) {
-        setPersonOptions(
-  personsData.map((p) => ({
-    value: p.id,
-    label: p.name,
-    entreprise_id: p.entreprise_id, // now available for filtering
-  }))
-);
+        .insert({ name: option.label, entreprise_id: selectedEntrepriseSite.value })
+        .select()
+        .maybeSingle();
+      
+      if (error) throw error;
+      
+      if (data) {
+        const newOption = { value: data.id, label: data.name, entreprise_id: data.entreprise_id };
+        setSelectedTravauxPerson(newOption);
+        setPersonOptions((prev) => [...prev, newOption]);
       }
+    } catch (error) {
+      console.error("Error inserting new travaux person:", error);
+      alert(`Erreur lors de l'ajout de la personne: ${error.message}`);
+    }
+  } else {
+    setSelectedTravauxPerson(option);
+  }
+};
 
-      // Fetch entreprises
-      const { data: entreprisesData, error: entreprisesError } = await supabase
-        .from("entreprises")
-        .select("*");
-      if (!entreprisesError && entreprisesData) {
-        setEntrepriseOptions(
-          entreprisesData.map((e) => ({ value: e.id, label: e.name }))
-        );
+
+  const handleSiteResponsableChange = async (option) => {
+    clearFieldError('selectedSiteResponsable');
+    
+    if (option && option.__isNew__) {
+      if (!selectedEntrepriseSite) {
+        alert("Veuillez d'abord sélectionner une entreprise.");
+        return;
       }
-
-      // Fetch lieux
-      const { data: lieuxData, error: lieuxError } = await supabase
-        .from("zones")
-        .select("*");
-      if (!lieuxError && lieuxData) {
-        console.log("Fetched options:", lieuxData)
-
-        setLieuOptions(
-          lieuxData.map((l) => ({ value: l.id, label: l.name }))
-        );
+      
+      try {
+        const { data, error } = await supabase
+          .from("persons")
+          .insert({ name: option.label, entreprise_id: selectedEntrepriseSite.value })
+          .select()
+          .maybeSingle();
         
-      }
-else {
-          console.error("Error fetching lieux:", lieuxError);
+        if (error) throw error;
+        
+        if (data) {
+          const newOption = { value: data.id, label: data.name, entreprise_id: data.entreprise_id };
+          setSelectedSiteResponsable(newOption);
+          setPersonOptions((prev) => [...prev, newOption]);
         }
-
-      // Fetch checkbox options – these tables (or static values) must exist in your DB
-      const { data: schData } = await supabase
-        .from("sources_chaleur")
-        .select("*");
-      if (schData){
-
-        console.log("Fetched options:", schData)
-        setSourceChaleurOptions(
-          schData.map((item) => ({ value: item.id, label: item.name }))
-        );
-            }
-      else {
-        console.error("Error fetching source de chaleur:", schData);
+      } catch (error) {
+        console.error("Error inserting new site responsable:", error);
+        alert(`Erreur lors de l'ajout du responsable du site: ${error.message}`);
       }
-
-      const { data: fagData } = await supabase
-        .from("facteurs_aggravants")
-        .select("*");
-      if (fagData) setFacteursAggravantsOptions(
-        fagData.map((item) => ({ value: item.id, label: item.name }))
-      );
-
-      const { data: avData } = await supabase
-        .from("mesure_prev_av")
-        .select("*");
-      if (avData) setMesuresAvOptions(
-        avData.map((item) => ({ value: item.id, label: item.name }))
-      );
-
-
-      const { data: pnData } = await supabase
-        .from("mesure_prev_pn")
-        .select("*");
-      if (pnData) setMesuresPnOptions(
-        pnData.map((item) => ({ value: item.id, label: item.name }))
-      );
-    };
-
-    fetchOptions();
-  }, []);
-
-  // --------------------------
-  // Checkbox Helper Function
-  // --------------------------
-  const toggleCheckbox = (value, currentArray, setArray) => {
-    if (currentArray.includes(value)) {
-      setArray(currentArray.filter((item) => item !== value));
     } else {
-      setArray([...currentArray, value]);
+      setSelectedSiteResponsable(option);
+    }
+  };
+
+  const handleEntrepriseChange = async (option) => {
+    clearFieldError('selectedEntrepriseSite');
+    
+    if (option && option.__isNew__) {
+      try {
+        const { data, error } = await supabase
+          .from("entreprises")
+          .insert({ name: option.label })
+          .select()
+          .maybeSingle();
+        
+        if (error) throw error;
+        
+        if (data) {
+          const newOption = { value: data.id, label: data.name };
+          setSelectedEntrepriseSite(newOption);
+          setEntrepriseOptions((prev) => [...prev, newOption]);
+        }
+      } catch (error) {
+        console.error("Erreur lors de l'insertion de la nouvelle entreprise:", error);
+        alert(`Erreur lors de l'ajout de l'entreprise: ${error.message}`);
+      }
+    } else {
+      setSelectedEntrepriseSite(option);
+    }
+  };
+
+  const handleZoneChange = async (option) => {
+    clearFieldError('selectedLieu');
+    
+    if (option && option.__isNew__) {
+      try {
+        const { data, error } = await supabase
+          .from("zones")
+          .insert({ 
+            name: option.label,
+            site_id: 1 // Replace with actual site_id
+          })
+          .select()
+          .maybeSingle();
+        
+        if (error) throw error;
+        
+        if (data) {
+          const newOption = { value: data.id, label: data.name };
+          setLieuOptions((prev) => [...prev, newOption]);
+          setSelectedLieu(newOption);
+        }
+      } catch (error) {
+        console.error("Erreur lors de l'insertion de la nouvelle zone:", error);
+        alert(`Erreur lors de l'ajout du lieu: ${error.message}`);
+      }
+    } else {
+      setSelectedLieu(option);
     }
   };
 
   // --------------------------
   // Signature Functions
   // --------------------------
-  const captureSurveillanceSignature = () => {
-    if (sigSurveillanceRef.current) {
-      const data = sigSurveillanceRef.current
-        .getTrimmedCanvas()
-        .toDataURL("image/png");
-      setRespSurvSignature(data);
+  const clearSignatureSurveillance = () => {
+    if (signaturePadSurveillance.current) {
+      signaturePadSurveillance.current.clear();
     }
-  };
-
-  const clearSurveillanceSignature = () => {
-    sigSurveillanceRef.current.clear();
     setRespSurvSignature("");
   };
 
-  const captureSiteSignature = () => {
-    if (sigSiteRef.current) {
-      const data = sigSiteRef.current.getTrimmedCanvas().toDataURL("image/png");
-      setRespSiteSignature(data);
+  const clearSignatureSite = () => {
+    if (signaturePadSite.current) {
+      signaturePadSite.current.clear();
     }
-  };
-
-  const clearSiteSignature = () => {
-    sigSiteRef.current.clear();
     setRespSiteSignature("");
   };
 
+  const captureSurveillanceSignature = () => {
+    if (signaturePadSurveillance.current && !signaturePadSurveillance.current.isEmpty()) {
+      return signaturePadSurveillance.current.toDataURL("image/png");
+    }
+    return "";
+  };
+
+  const captureSiteSignature = () => {
+    if (signaturePadSite.current && !signaturePadSite.current.isEmpty()) {
+      return signaturePadSite.current.toDataURL("image/png");
+    }
+    return "";
+  };
+
   // --------------------------
-  // Handle Form Submit (Using Supabase)
+  // Helper Functions
+  // --------------------------
+  const toggleCheckbox = (value, currentArray, setArray) => {
+    if (currentArray.includes(value)) {
+      setArray(currentArray.filter((item) => item !== value));
+    } else {
+      setArray([...currentArray, value]);
+      // Clear source de chaleur error when an option is selected
+      if (setArray === setSourceChaleur) {
+        clearFieldError('sourceChaleur');
+      }
+    }
+  };
+
+  const toggleMeasureSelection = (measureId, type, currentSelections, setSelections) => {
+    setSelections((prev) => {
+      const current = prev[measureId] || { EE: false, EU: false };
+      return {
+        ...prev,
+        [measureId]: {
+          ...current,
+          [type]: !current[type],
+        },
+      };
+    });
+  };
+
+  const appendTimezoneOffset = (localDateTimeString) => {
+    if (!localDateTimeString || localDateTimeString.trim() === "") return null;
+    const localDate = new Date(localDateTimeString);
+    if (isNaN(localDate.getTime())) return null;
+    const offsetMinutes = -localDate.getTimezoneOffset();
+    const pad = (n) => String(n).padStart(2, "0");
+    const sign = offsetMinutes >= 0 ? "+" : "-";
+    const offsetHours = pad(Math.floor(Math.abs(offsetMinutes) / 60));
+    const offsetRemMinutes = pad(Math.abs(offsetMinutes) % 60);
+    return `${localDateTimeString}${sign}${offsetHours}:${offsetRemMinutes}`;
+  };
+
+  // --------------------------
+  // Data Fetching
+  // --------------------------
+  useEffect(() => {
+    const fetchOptions = async () => {
+      try {
+        // Fetch all data concurrently
+        const [
+          { data: personsData, error: personsError },
+          { data: entreprisesData, error: entreprisesError },
+          { data: lieuxData, error: lieuxError },
+          { data: schData, error: schError },
+          { data: fagData, error: fagError },
+          { data: avData, error: avError },
+          { data: pnData, error: pnError }
+        ] = await Promise.all([
+          supabase.from("persons").select("*"),
+          supabase.from("entreprises").select("*"),
+          supabase.from("zones").select("*"),
+          supabase.from("sources_chaleur").select("*"),
+          supabase.from("facteurs_aggravants").select("*"),
+          supabase.from("mesure_prev_av").select("*"),
+          supabase.from("mesure_prev_pn").select("*")
+        ]);
+
+        // Handle errors
+        const fetchErrors = [];
+        if (personsError) fetchErrors.push(`Personnes: ${personsError.message}`);
+        if (entreprisesError) fetchErrors.push(`Entreprises: ${entreprisesError.message}`);
+        if (lieuxError) fetchErrors.push(`Lieux: ${lieuxError.message}`);
+        if (schError) fetchErrors.push(`Sources de chaleur: ${schError.message}`);
+        if (fagError) fetchErrors.push(`Facteurs aggravants: ${fagError.message}`);
+        if (avError) fetchErrors.push(`Mesures avant: ${avError.message}`);
+        if (pnError) fetchErrors.push(`Mesures pendant: ${pnError.message}`);
+
+        if (fetchErrors.length > 0) {
+          alert(`Erreur lors du chargement des données:\n${fetchErrors.join('\n')}`);
+          return;
+        }
+
+        // Set data
+        if (personsData) {
+          setPersonOptions(personsData.map((p) => ({
+            value: p.id,
+            label: p.name,
+            entreprise_id: p.entreprise_id,
+          })));
+        }
+
+        if (entreprisesData) {
+          setEntrepriseOptions(entreprisesData.map((e) => ({ value: e.id, label: e.name })));
+        }
+
+        if (lieuxData) {
+          setLieuOptions(lieuxData.map((l) => ({ value: l.id, label: l.name })));
+        }
+
+        if (schData) {
+          setSourceChaleurOptions(schData.map((item) => ({ value: item.id, label: item.name })));
+        }
+
+        if (fagData) {
+          setFacteursAggravantsOptions(fagData.map((item) => ({ value: item.id, label: item.name })));
+        }
+
+        if (avData) {
+          setMesuresAvOptions(avData.map((item) => ({ value: item.id, label: item.name })));
+        }
+
+        if (pnData) {
+          setMesuresPnOptions(pnData.map((item) => ({ value: item.id, label: item.name })));
+        }
+
+        // Load existing permit data if editing
+        if (isEditing && id) {
+          await loadPermitData(id);
+        }
+
+      } catch (error) {
+        console.error("Error fetching options:", error);
+        alert(`Erreur lors du chargement des données: ${error.message}`);
+      }
+    };
+
+    fetchOptions();
+  }, [id, isEditing]);
+
+  // Auto-select first entreprise (only for new permits)
+  useEffect(() => {
+    if (!isEditing && entrepriseOptions.length > 0 && !selectedEntrepriseSite) {
+      setSelectedEntrepriseSite(entrepriseOptions[0]);
+    }
+  }, [entrepriseOptions, selectedEntrepriseSite, isEditing]);
+
+  // Default Selections - Only set once when options load (only for new permits)
+  useEffect(() => {
+    if (!isEditing && mesuresAvOptions.length > 0 && Object.keys(mesuresPreventionAvSelections).length === 0) {
+      const defaultAvSelections = {};
+      mesuresAvOptions.forEach((opt, index) => {
+        if (index < 3 || index === 4 || index === 8) {
+          defaultAvSelections[opt.value] = { EU: true, EE: false };
+        }
+      });
+      setMesuresPreventionAvSelections(defaultAvSelections);
+    }
+  }, [mesuresAvOptions, isEditing]);
+
+  useEffect(() => {
+    if (!isEditing && mesuresPnOptions.length > 0 && Object.keys(mesuresPreventionPnSelections).length === 0) {
+      const defaultPnSelections = {};
+      mesuresPnOptions.slice(0, 3).forEach((opt) => {
+        defaultPnSelections[opt.value] = { EU: true, EE: false };
+      });
+      setMesuresPreventionPnSelections(defaultPnSelections);
+    }
+  }, [mesuresPnOptions, isEditing]);
+
+  // --------------------------
+  // Save Function (shared by both buttons)
+  // --------------------------
+  const savePermis = async (status = "normal") => {
+    try {
+      // Capture signatures (may be empty for draft)
+      const survSignature = captureSurveillanceSignature();
+      const siteSignature = captureSiteSignature();
+
+      // Build payload with all current form data
+      const payload = {
+        heure_debut: appendTimezoneOffset(heureDebut),
+        heure_fin: appendTimezoneOffset(heureFin),
+        dejeuner_debut: dejeunerDebut ? appendTimezoneOffset(dejeunerDebut) : null,
+        dejeuner_fin: dejeunerFin ? appendTimezoneOffset(dejeunerFin) : null,
+        choix_entreprise: choixEntreprise || null,
+        resp_surveillance_id: selectedSurveillance ? parseInt(selectedSurveillance.value) : null,
+        resp_surv_signature: survSignature || null,
+        resp_site_id: selectedSiteResponsable ? parseInt(selectedSiteResponsable.value) : null,
+        resp_site_signature: siteSignature || null,
+        entreprise_resp_site_id: selectedEntrepriseSite ? parseInt(selectedEntrepriseSite.value) : null,
+        lieu_id: selectedLieu ? parseInt(selectedLieu.value) : null,
+        operation_description: operationDescription.trim() || null,
+        status: status,
+        travaux_par_id: selectedTravauxPerson ? parseInt(selectedTravauxPerson.value) : null,
+
+      };
+
+      console.log("Saving permis with payload:", payload);
+
+      let permisId;
+      let permisData;
+
+      if (isEditing) {
+        // Update existing permit
+        const { data: updatedData, error: updateError } = await supabase
+          .from("permis_de_feu")
+          .update(payload)
+          .eq("id", id)
+          .select()
+          .single();
+
+        if (updateError) {
+          throw new Error(`Erreur lors de la mise à jour du permis: ${updateError.message}`);
+        }
+
+        permisData = updatedData;
+        permisId = id;
+
+        // Delete existing junction data
+        await Promise.all([
+          supabase.from("pdf_sch_junction").delete().eq("pdf_id", permisId),
+          supabase.from("pdf_faggravant_junction").delete().eq("pdf_id", permisId),
+          supabase.from("pdf_mpa_junction").delete().eq("pdf", permisId),
+          supabase.from("pdf_mpp_junction").delete().eq("pdf", permisId)
+        ]);
+      } else {
+        // Insert new permit
+        const { data: newData, error: insertError } = await supabase
+          .from("permis_de_feu")
+          .insert(payload)
+          .select()
+          .single();
+
+        if (insertError) {
+          throw new Error(`Erreur lors de l'insertion du permis: ${insertError.message}`);
+        }
+
+        permisData = newData;
+        permisId = permisData.id;
+      }
+
+      console.log("Permis saved with ID:", permisId);
+
+      // Sequential junction table inserts with error handling
+      const insertionErrors = [];
+
+      // Insert source de chaleur (if any selected)
+      if (sourceChaleur.length > 0) {
+        const rows = sourceChaleur.map((item) => ({
+          pdf_id: permisId,
+          sch_id: parseInt(item),
+        }));
+        console.log("Inserting source chaleur:", rows);
+        
+        const { error } = await supabase.from("pdf_sch_junction").insert(rows);
+        if (error) {
+          insertionErrors.push(`Sources de chaleur: ${error.message}`);
+        }
+      }
+
+      // Insert facteurs aggravants (if any selected)
+      if (facteursAggravants.length > 0) {
+        const rows = facteursAggravants.map((item) => ({
+          pdf_id: permisId,
+          faggravant_id: parseInt(item),
+        }));
+        console.log("Inserting facteurs aggravants:", rows);
+        
+        const { error } = await supabase.from("pdf_faggravant_junction").insert(rows);
+        if (error) {
+          insertionErrors.push(`Facteurs aggravants: ${error.message}`);
+        }
+      }
+
+      // Insert Mesures de Prévention AVANT (if any selected)
+      const avRows = [];
+      for (const measureId in mesuresPreventionAvSelections) {
+        const sel = mesuresPreventionAvSelections[measureId];
+        if (sel.EE || sel.EU) {
+          let entrepriseValue;
+          if (sel.EE && sel.EU) entrepriseValue = "BOTH";
+          else if (sel.EE) entrepriseValue = "E.E";
+          else if (sel.EU) entrepriseValue = "E.U";
+          
+          avRows.push({
+            pdf: permisId,
+            mpa: parseInt(measureId),
+            entreprise: entrepriseValue,
+          });
+        }
+      }
+      
+      if (avRows.length > 0) {
+        console.log("Inserting mesures avant:", avRows);
+        const { error } = await supabase.from("pdf_mpa_junction").insert(avRows);
+        if (error) {
+          insertionErrors.push(`Mesures prévention avant: ${error.message}`);
+        }
+      }
+
+      // Insert Mesures de Prévention PENDANT (if any selected)
+      const pnRows = [];
+      for (const measureId in mesuresPreventionPnSelections) {
+        const sel = mesuresPreventionPnSelections[measureId];
+        if (sel.EE || sel.EU) {
+          let entrepriseValue;
+          if (sel.EE && sel.EU) entrepriseValue = "BOTH";
+          else if (sel.EE) entrepriseValue = "E.E";
+          else if (sel.EU) entrepriseValue = "E.U";
+          
+          pnRows.push({
+            pdf: permisId,
+            mpp: parseInt(measureId),
+            entreprise: entrepriseValue,
+          });
+        }
+      }
+      
+      if (pnRows.length > 0) {
+        console.log("Inserting mesures pendant:", pnRows);
+        const { error } = await supabase.from("pdf_mpp_junction").insert(pnRows);
+        if (error) {
+          insertionErrors.push(`Mesures prévention pendant: ${error.message}`);
+        }
+      }
+
+      // Check if there were any insertion errors
+      if (insertionErrors.length > 0) {
+        const actionText = isEditing ? "mis à jour" : (status === "planified" ? "planifié" : "enregistré");
+        alert(`Permis ${actionText} mais avec des erreurs:\n${insertionErrors.join('\n')}\n\nVérifiez les données et modifiez le permis si nécessaire.`);
+      } else {
+        const actionText = isEditing ? "mis à jour" : (status === "planified" ? "planifié" : "enregistré");
+        alert(`Permis de Feu ${actionText} avec succès !`);
+      }
+
+      // Navigate to details page
+      navigate(`/listpermisdefeu/`);
+
+    } catch (error) {
+      console.error("Submission error:", error);
+      alert(`Erreur: ${error.message}`);
+      throw error; // Re-throw to be handled by the calling function
+    }
+  };
+
+  // --------------------------
+  // Handle Form Submit (Validated)
   // --------------------------
   const handleSubmit = async (e) => {
     e.preventDefault();
-    // Capture signatures (if not already captured)
-    captureSurveillanceSignature();
-    captureSiteSignature();
-
-    // Build payload for the main permisdefeu record.
-    const payload = {
-      heure_debut: heureDebut ? appendTimezoneOffset(heureDebut) : null,
-      heure_fin: heureFin ? appendTimezoneOffset(heureFin) : null,
-      dejeuner_debut: dejeunerDebut ? appendTimezoneOffset(dejeunerDebut) : null,
-      dejeuner_fin: dejeunerFin ? appendTimezoneOffset(dejeunerFin) : null,
-      choix_entreprise: choixEntreprise, // This will be either "EE" or "EU"
-      resp_surveillance_id: selectedSurveillance?.value || null,
-      resp_surv_signature: respSurvSignature,
-      resp_site_id: selectedSiteResponsable?.value || null,
-      resp_site_signature: respSiteSignature,
-      entreprise_resp_site_id: selectedEntrepriseSite?.value || null,
-      lieu_id: selectedLieu?.value || null,
-      operation_description: operationDescription,
-    };
-
-    // Insert into permisdefeu table
-    const { data: permisData, error: permisError } = await supabase
-      .from("permis_de_feu")
-      .insert(payload)
-      .select()
-      .single();
-
-    if (permisError) {
-      console.error("Error inserting permisdefeu:", permisError);
-      alert("Error inserting permisdefeu");
+    
+    // Clear previous field errors
+    setFieldErrors({});
+    
+    // Validate form
+    if (!validateForm()) {
       return;
     }
 
-    const permisId = permisData.id;
+    setIsSubmitting(true);
 
-    // Insert multi-select options into their respective junction tables.
-    // For source de chaleur:
-    if (sourceChaleur.length > 0) {
-      const rows = sourceChaleur.map((item) => ({
-        pdf_id: permisId,
-        sch_id: item,
-      }));
-      const { error } = await supabase
-        .from("pdf_sch_junction")
-        .insert(rows);
-      if (error) console.error("Error inserting source_chaleur:", error);
+    try {
+      await savePermis("normal");
+    } catch (error) {
+      // Error already handled in savePermis
+    } finally {
+      setIsSubmitting(false);
     }
-
-    // For facteurs aggravants:
-    if (facteursAggravants.length > 0) {
-      const rows = facteursAggravants.map((item) => ({
-        pdf_id: permisId,
-        faggravant_id: item,
-      }));
-      const { error } = await supabase
-        .from("pdf_faggravant_junction")
-        .insert(rows);
-      if (error) console.error("Error inserting facteurs_aggravants:", error);
-    }
-
-// For Mesures de Prévention AVANT:
-const avRows = [];
-for (const measureId in mesuresPreventionAvSelections) {
-  const sel = mesuresPreventionAvSelections[measureId];
-  if (sel.EE || sel.EU) {
-    let entrepriseValue;
-    if (sel.EE && sel.EU) entrepriseValue = "BOTH";
-    else if (sel.EE) entrepriseValue = "E.E";
-    else if (sel.EU) entrepriseValue = "E.U";
-    avRows.push({
-      pdf: permisId,
-      mpa: measureId,
-      entreprise: entrepriseValue,
-    });
-  }
-}
-if (avRows.length > 0) {
-  const { error } = await supabase.from("pdf_mpa_junction").insert(avRows);
-  if (error) console.error("Error inserting mesures_prevention_av:", error);
-}
-
-// For Mesures de Prévention PENDANT:
-const pnRows = [];
-for (const measureId in mesuresPreventionPnSelections) {
-  const sel = mesuresPreventionPnSelections[measureId];
-  if (sel.EE || sel.EU) {
-    let entrepriseValue;
-    if (sel.EE && sel.EU) entrepriseValue = "BOTH";
-    else if (sel.EE) entrepriseValue = "E.E";
-    else if (sel.EU) entrepriseValue = "E.U";
-    pnRows.push({
-      pdf: permisId,
-      mpp: measureId,
-      entreprise: entrepriseValue,
-    });
-  }
-}
-if (pnRows.length > 0) {
-  const { error } = await supabase.from("pdf_mpp_junction").insert(pnRows);
-  if (error) console.error("Error inserting mesures_prevention_pn:", error);
-}
-
-    alert("Permis de Feu enregistré avec succès !");
-    navigate("/listpermisdefeu"); // Redirect to the list page
-    // Optionally reset form fields here
   };
 
+  // --------------------------
+  // Handle Save Draft (No Validation)
+  // --------------------------
+  const handleSaveDraft = async () => {
+    setIsSavingDraft(true);
+    
+    try {
+      await savePermis("planified");
+    } catch (error) {
+      // Error already handled in savePermis
+    } finally {
+      setIsSavingDraft(false);
+    }
+  };
 
+  // Filter persons for surveillance (only from user's company)
+  const filteredPersonOptionsForSurveillance = personOptions.filter(
+    (p) => p.entreprise_id === entrepriseUtilisatrice?.id
+  );
 
-
-
-
-
-// Preselect first three "Mesures de Prévention - AVANT LE TRAVAIL"
-useEffect(() => {
-  if (mesuresAvOptions.length > 0) {
-    const defaultAvSelections = { ...mesuresPreventionAvSelections };
-    mesuresAvOptions.forEach((opt, index) => {
-      // Preselect if index is 0,1,2 (first three) OR index === 4 (fifth item)
-      if (index < 3 || index === 4 || index === 8) {
-        defaultAvSelections[opt.value] = { EU: true };
-      }
-    });
-    setMesuresPreventionAvSelections(defaultAvSelections);
+  // Show loading spinner if loading permit data
+  if (isLoadingPermit) {
+    return (
+      <div className="flex justify-center items-center h-screen w-full bg-gray-100">
+        <div className="flex items-center gap-2">
+          <div className="animate-spin rounded-full h-8 w-8 border-2 border-indigo-600 border-t-transparent"></div>
+          <h4>Chargement du permis...</h4>
+        </div>
+      </div>
+    );
   }
-}, [mesuresAvOptions]);
-
-// Preselect first three "Mesures de Prévention - PENDANT LE TRAVAIL"
-useEffect(() => {
-  if (mesuresPnOptions.length > 0) {
-    const defaultPnSelections = { ...mesuresPreventionPnSelections };
-    mesuresPnOptions.slice(0, 3).forEach((opt) => {
-      defaultPnSelections[opt.value] = {  EU: true }; // or adjust defaults as needed
-    });
-    setMesuresPreventionPnSelections(defaultPnSelections);
-  }
-}, [mesuresPnOptions]);
-
-
-
-
-
-
-
-
-
-const appendTimezoneOffset = (localDateTimeString) => {
-  if (!localDateTimeString || localDateTimeString.trim() === "") return null;
-  const localDate = new Date(localDateTimeString);
-  if (isNaN(localDate.getTime())) return null;
-  const offsetMinutes = -localDate.getTimezoneOffset();
-  const pad = (n) => String(n).padStart(2, "0");
-  const sign = offsetMinutes >= 0 ? "+" : "-";
-  const offsetHours = pad(Math.floor(Math.abs(offsetMinutes) / 60));
-  const offsetRemMinutes = pad(Math.abs(offsetMinutes) % 60);
-  return `${localDateTimeString}${sign}${offsetHours}:${offsetRemMinutes}`;
-};
-
-
-
-
-
-
-
-
-
-
 
   // --------------------------
   // Render the Form
   // --------------------------
   return (
     <div className="min-h-screen bg-gray-100 p-4 overflow-auto pt-20">
-      <form onSubmit={handleSubmit} className="max-w-6xl mx-auto bg-white p-8 rounded shadow">
-        <h1 className="text-3xl font-bold mb-6 text-center">Permis de Feu</h1>
+      <form onSubmit={handleSubmit} noValidate className="max-w-6xl mx-auto bg-white p-8 rounded shadow">
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-3xl font-bold text-center">
+            {isEditing ? "Modifier Permis de Feu" : "Permis de Feu"}
+          </h1>
+          {isEditing && (
+            <div className="bg-orange-100 border border-orange-400 text-orange-700 px-3 py-2 rounded">
+              Mode édition
+            </div>
+          )}
+        </div>
 
         {/* Horaires */}
-        <section className="mb-8">
+        <section ref={horairesRef} className="mb-8">
           <h2 className="text-xl font-semibold mb-4">Horaires</h2>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700">Date et Heure de début</label>
+              <label className="block text-sm font-medium text-gray-700">
+                Date et Heure de début <span className="text-red-500">*</span>
+              </label>
               <input
                 type="datetime-local"
-                className="mt-1 block w-full border border-gray-300 rounded p-2"
+                className={`mt-1 block w-full border rounded p-2 ${
+                  fieldErrors.heureDebut ? 'border-red-500 bg-red-50' : 'border-gray-300'
+                }`}
                 value={heureDebut}
-                onChange={(e) => setHeureDebut(e.target.value)}
+                onChange={(e) => {
+                  setHeureDebut(e.target.value);
+                  clearFieldError('heureDebut');
+                }}
               />
+              {fieldErrors.heureDebut && (
+                <p className="mt-1 text-sm text-red-600">{fieldErrors.heureDebut}</p>
+              )}
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700">Date et Heure de fin</label>
+              <label className="block text-sm font-medium text-gray-700">
+                Date et Heure de fin <span className="text-red-500">*</span>
+              </label>
               <input
                 type="datetime-local"
-                className="mt-1 block w-full border border-gray-300 rounded p-2"
+                className={`mt-1 block w-full border rounded p-2 ${
+                  fieldErrors.heureFin ? 'border-red-500 bg-red-50' : 'border-gray-300'
+                }`}
                 value={heureFin}
-                onChange={(e) => setHeureFin(e.target.value)}
+                onChange={(e) => {
+                  setHeureFin(e.target.value);
+                  clearFieldError('heureFin');
+                }}
               />
+              {fieldErrors.heureFin && (
+                <p className="mt-1 text-sm text-red-600">{fieldErrors.heureFin}</p>
+              )}
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700">Début pause déjeuner</label>
@@ -635,10 +1044,12 @@ const appendTimezoneOffset = (localDateTimeString) => {
         </section>
 
         {/* Responsable de la surveillance */}
-        <section className="mb-8">
+        <section ref={surveillanceRef} className="mb-8">
           <h2 className="text-xl font-semibold mb-4">Responsable de la surveillance</h2>
           <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700">Choix (E.E / E.U)</label>
+            <label className="block text-sm font-medium text-gray-700">
+              Choix (E.E / E.U) <span className="text-red-500">*</span>
+            </label>
             <div className="mt-1">
               <label className="mr-4 inline-flex items-center">
                 <input
@@ -647,7 +1058,10 @@ const appendTimezoneOffset = (localDateTimeString) => {
                   className="form-radio"
                   value="EE"
                   checked={choixEntreprise === "EE"}
-                  onChange={(e) => setChoixEntreprise(e.target.value)}
+                  onChange={(e) => {
+                    setChoixEntreprise(e.target.value);
+                    clearFieldError('choixEntreprise');
+                  }}
                 />
                 <span className="ml-2">E.E</span>
               </label>
@@ -658,125 +1072,255 @@ const appendTimezoneOffset = (localDateTimeString) => {
                   className="form-radio"
                   value="EU"
                   checked={choixEntreprise === "EU"}
-                  onChange={(e) => setChoixEntreprise(e.target.value)}
+                  onChange={(e) => {
+                    setChoixEntreprise(e.target.value);
+                    clearFieldError('choixEntreprise');
+                  }}
                 />
                 <span className="ml-2">E.U</span>
               </label>
             </div>
+            {fieldErrors.choixEntreprise && (
+              <p className="mt-1 text-sm text-red-600">{fieldErrors.choixEntreprise}</p>
+            )}
           </div>
           <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700">Nom du responsable</label>
+            <label className="block text-sm font-medium text-gray-700">
+              Nom du responsable <span className="text-red-500">*</span>
+            </label>
             <CreatableSelect
-  options={filteredPersonOptionsForSurveillance}
-  value={selectedSurveillance}
-  onChange={handleSurveillanceChange}
-  placeholder="Sélectionnez ou créez un responsable"
-/>
+              options={filteredPersonOptionsForSurveillance}
+              value={selectedSurveillance}
+              onChange={handleSurveillanceChange}
+              placeholder="Sélectionnez ou créez un responsable"
+              isDisabled={isSubmitting || isSavingDraft}
+              styles={{
+                control: (base) => ({
+                  ...base,
+                  borderColor: fieldErrors.selectedSurveillance ? '#ef4444' : base.borderColor,
+                  backgroundColor: fieldErrors.selectedSurveillance ? '#fef2f2' : base.backgroundColor,
+                })
+              }}
+            />
+            {fieldErrors.selectedSurveillance && (
+              <p className="mt-1 text-sm text-red-600">{fieldErrors.selectedSurveillance}</p>
+            )}
           </div>
           <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700">Signature du responsable</label>
-            <div className="mt-1 border border-gray-300 rounded mx-auto" style={{ width: "500px", height: "150px" }}>
-  <canvas ref={sigPadSurveillance} className="w-full h-full" />
-</div>
-<button
-  type="button"
-  onClick={clearSignatureSurveillance}
-  className="mt-2 text-blue-600 text-sm"
->
-  Effacer la signature
-</button>
-            
+            <label className="block text-sm font-medium text-gray-700">
+              Signature du responsable <span className="text-red-500">*</span>
+            </label>
+            <div className={`mt-1 border rounded mx-auto ${
+              fieldErrors.signatureSurveillance ? 'border-red-500' : 'border-gray-300'
+            }`} style={{ width: "500px", height: "150px" }}>
+              <canvas ref={sigPadSurveillance} className="w-full h-full" />
+            </div>
+            <button
+              type="button"
+              onClick={clearSignatureSurveillance}
+              className="mt-2 text-blue-600 text-sm"
+              disabled={isSubmitting || isSavingDraft}
+            >
+              Effacer la signature
+            </button>
+            {fieldErrors.signatureSurveillance && (
+              <p className="mt-1 text-sm text-red-600">{fieldErrors.signatureSurveillance}</p>
+            )}
           </div>
         </section>
 
         {/* Travaux réalisés par */}
-        <section className="mb-8">
+        <section ref={travauxRef} className="mb-8">
           <h2 className="text-xl font-semibold mb-4">Travaux réalisés par</h2>
           <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700">Nom de la personne</label>
+            <label className="block text-sm font-medium text-gray-700">
+              Nom de la personne <span className="text-red-500">*</span>
+            </label>
             <CreatableSelect
-  options={personOptions}
-  value={selectedSiteResponsable}
-  onChange={handleSiteResponsableChange}
-  placeholder="Sélectionnez ou créez un responsable"
-/>
-
+              options={personOptions}
+              value={selectedTravauxPerson}
+onChange={handleTravauxPersonChange}
+              placeholder="Sélectionnez ou créez un responsable"
+              isDisabled={isSubmitting || isSavingDraft}
+styles={{
+  control: (base) => ({
+    ...base,
+    borderColor: fieldErrors.selectedTravauxPerson ? '#ef4444' : base.borderColor, // ✅ Correct field
+    backgroundColor: fieldErrors.selectedTravauxPerson ? '#fef2f2' : base.backgroundColor, // ✅ Correct field
+  })
+}}
+            />
+            {fieldErrors.selectedTravauxPerson && (
+  <p className="mt-1 text-sm text-red-600">{fieldErrors.selectedTravauxPerson}</p>
+)}
           </div>
         </section>
 
         {/* Responsable du site / délégation */}
-        <section className="mb-8">
+        <section ref={siteResponsableRef} className="mb-8">
           <h2 className="text-xl font-semibold mb-4">Responsable du site / délégation</h2>
           <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700">Entreprise (site)</label>
+            <label className="block text-sm font-medium text-gray-700">
+              Entreprise (site) <span className="text-red-500">*</span>
+            </label>
             <CreatableSelect
-  options={entrepriseOptions}
-  value={selectedEntrepriseSite}
-  onChange={handleEntrepriseChange}
-  placeholder="Sélectionnez ou créez une entreprise"
-/>
-
+              options={entrepriseOptions}
+              value={selectedEntrepriseSite}
+              onChange={handleEntrepriseChange}
+              placeholder="Sélectionnez ou créez une entreprise"
+              isDisabled={isSubmitting || isSavingDraft}
+styles={{
+  control: (base) => ({
+    ...base,
+    borderColor: fieldErrors.selectedEntrepriseSite ? '#ef4444' : base.borderColor, // ✅ Correct field
+    backgroundColor: fieldErrors.selectedEntrepriseSite ? '#fef2f2' : base.backgroundColor, // ✅ Correct field
+  })
+}}
+            />
+            {fieldErrors.selectedEntrepriseSite && (
+              <p className="mt-1 text-sm text-red-600">{fieldErrors.selectedEntrepriseSite}</p>
+            )}
           </div>
-          <div className="mb-4">
-            
-          </div>
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700">Signature</label>
-            <div className="mt-1 border border-gray-300 rounded mx-auto" style={{ width: "500px", height: "150px" }}>
-  <canvas ref={sigPadSite} className="w-full h-full" />
-</div>
-<button
-  type="button"
-  onClick={clearSignatureSite}
-  className="mt-2 text-blue-600 text-sm"
->
-  Effacer la signature
-</button>
 
-            
+
+
+
+
+{/* ADD THIS: Missing person selection field */}
+  <div className="mb-4">
+    <label className="block text-sm font-medium text-gray-700">
+      Nom du responsable <span className="text-red-500">*</span>
+    </label>
+    <CreatableSelect
+      options={personOptions.filter(p => p.entreprise_id === selectedEntrepriseSite?.value)}
+      value={selectedSiteResponsable}
+      onChange={handleSiteResponsableChange}
+      placeholder="Sélectionnez ou créez un responsable"
+      isDisabled={isSubmitting || isSavingDraft || !selectedEntrepriseSite}
+      styles={{
+        control: (base) => ({
+          ...base,
+          borderColor: fieldErrors.selectedSiteResponsable ? '#ef4444' : base.borderColor,
+          backgroundColor: fieldErrors.selectedSiteResponsable ? '#fef2f2' : base.backgroundColor,
+        })
+      }}
+    />
+    {fieldErrors.selectedSiteResponsable && (
+      <p className="mt-1 text-sm text-red-600">{fieldErrors.selectedSiteResponsable}</p>
+    )}
+  </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700">
+              Signature <span className="text-red-500">*</span>
+            </label>
+            <div className={`mt-1 border rounded mx-auto ${
+              fieldErrors.signatureSite ? 'border-red-500' : 'border-gray-300'
+            }`} style={{ width: "500px", height: "150px" }}>
+              <canvas ref={sigPadSite} className="w-full h-full" />
+            </div>
+            <button
+              type="button"
+              onClick={clearSignatureSite}
+              className="mt-2 text-blue-600 text-sm"
+              disabled={isSubmitting || isSavingDraft}
+            >
+              Effacer la signature
+            </button>
+            {fieldErrors.signatureSite && (
+              <p className="mt-1 text-sm text-red-600">{fieldErrors.signatureSite}</p>
+            )}
           </div>
         </section>
 
         {/* Lieu et Opération */}
-        <section className="mb-8">
+        <section ref={lieuRef} className="mb-8">
           <h2 className="text-xl font-semibold mb-4">Localisation & Opération</h2>
           <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700">Localisation / Lieu</label>
+            <label className="block text-sm font-medium text-gray-700">
+              Localisation / Lieu <span className="text-red-500">*</span>
+            </label>
             <CreatableSelect
-  options={lieuOptions}
-  value={selectedLieu}
-  onChange={handleZoneChange}
-  placeholder="Sélectionnez ou créez une zone..."
-/>
+              options={lieuOptions}
+              value={selectedLieu}
+              onChange={handleZoneChange}
+              placeholder="Sélectionnez ou créez une zone..."
+              isDisabled={isSubmitting || isSavingDraft}
+              styles={{
+                control: (base) => ({
+                  ...base,
+                  borderColor: fieldErrors.selectedLieu ? '#ef4444' : base.borderColor,
+                  backgroundColor: fieldErrors.selectedLieu ? '#fef2f2' : base.backgroundColor,
+                })
+              }}
+            />
+            {fieldErrors.selectedLieu && (
+              <p className="mt-1 text-sm text-red-600">{fieldErrors.selectedLieu}</p>
+            )}
           </div>
           <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700">Opération à effectuer</label>
+            <label className="block text-sm font-medium text-gray-700">
+              Opération à effectuer <span className="text-red-500">*</span>
+            </label>
             <textarea
               rows="3"
               placeholder="Description de l'opération"
-              className="mt-1 block w-full border border-gray-300 rounded p-2"
+              className={`mt-1 block w-full border rounded p-2 ${
+                fieldErrors.operationDescription ? 'border-red-500 bg-red-50' : 'border-gray-300'
+              }`}
               value={operationDescription}
-              onChange={(e) => setOperationDescription(e.target.value)}
+              onChange={(e) => {
+                setOperationDescription(e.target.value);
+                clearFieldError('operationDescription');
+              }}
+              disabled={isSubmitting || isSavingDraft}
             />
+            {fieldErrors.operationDescription && (
+              <p className="mt-1 text-sm text-red-600">{fieldErrors.operationDescription}</p>
+            )}
           </div>
         </section>
 
         {/* Source de Chaleur */}
-        <section className="mb-8">
-          <h2 className="text-xl font-semibold mb-4">Source de Chaleur</h2>
+        <section ref={sourceChaleurRef} className="mb-8">
+          <h2 className="text-xl font-semibold mb-4">
+            Source de Chaleur <span className="text-red-500">*</span>
+          </h2>
           <div className="grid grid-cols-3 gap-4">
-          {sourceChaleurOptions.map((opt) => (
-  <label key={opt.value} className="flex items-center">
-    <input
-      type="checkbox"
-      className="form-checkbox"
-      checked={sourceChaleur.includes(opt.value)}
-      onChange={() => toggleCheckbox(opt.value, sourceChaleur, setSourceChaleur)}
-    />
-    <span className="ml-2">{opt.label}</span>
-  </label>
-))}
+            {sourceChaleurOptions.map((opt) => (
+              <label key={opt.value} className="flex items-center">
+                <input
+                  type="checkbox"
+                  className="form-checkbox"
+                  checked={sourceChaleur.includes(opt.value)}
+                  onChange={() => toggleCheckbox(opt.value, sourceChaleur, setSourceChaleur)}
+                  disabled={isSubmitting || isSavingDraft}
+                />
+                <span className="ml-2">{opt.label}</span>
+              </label>
+            ))}
           </div>
+          {fieldErrors.sourceChaleur && (
+            <p className="mt-2 text-sm text-red-600">{fieldErrors.sourceChaleur}</p>
+          )}
         </section>
 
         {/* Facteurs Aggravants */}
@@ -790,6 +1334,7 @@ const appendTimezoneOffset = (localDateTimeString) => {
                   className="form-checkbox"
                   checked={facteursAggravants.includes(opt.value)}
                   onChange={() => toggleCheckbox(opt.value, facteursAggravants, setFacteursAggravants)}
+                  disabled={isSubmitting || isSavingDraft}
                 />
                 <span className="ml-2">{opt.label}</span>
               </label>
@@ -797,102 +1342,137 @@ const appendTimezoneOffset = (localDateTimeString) => {
           </div>
         </section>
 
-       {/* Mesures de Prévention - AVANT LE TRAVAIL */}
-<section className="mb-8">
-  <h2 className="text-xl font-semibold mb-4">Mesures de Prévention - AVANT LE TRAVAIL</h2>
-  <div className="grid grid-cols-1 gap-4">
-    {mesuresAvOptions.map((opt) => (
-      <div key={opt.value}>
-        <div>{opt.label}</div>
-        <div className="flex gap-2">
-          <label className="inline-flex items-center">
-            <input
-              type="checkbox"
-              className="form-checkbox"
-              checked={mesuresPreventionAvSelections[opt.value]?.EE || false}
-              onChange={() =>
-                toggleMeasureSelection(
-                  opt.value,
-                  "EE",
-                  mesuresPreventionAvSelections,
-                  setMesuresPreventionAvSelections
-                )
-              }
-            />
-            <span className="ml-1">E.E</span>
-          </label>
-          <label className="inline-flex items-center">
-            <input
-              type="checkbox"
-              className="form-checkbox"
-              checked={mesuresPreventionAvSelections[opt.value]?.EU || false}
-              onChange={() =>
-                toggleMeasureSelection(
-                  opt.value,
-                  "EU",
-                  mesuresPreventionAvSelections,
-                  setMesuresPreventionAvSelections
-                )
-              }
-            />
-            <span className="ml-1">E.U</span>
-          </label>
-        </div>
-      </div>
-    ))}
-  </div>
-</section>
+        {/* Mesures de Prévention - AVANT LE TRAVAIL */}
+        <section className="mb-8">
+          <h2 className="text-xl font-semibold mb-4">Mesures de Prévention - AVANT LE TRAVAIL</h2>
+          <div className="grid grid-cols-1 gap-4">
+            {mesuresAvOptions.map((opt) => (
+              <div key={opt.value} className="border p-3 rounded">
+                <div className="font-medium mb-2">{opt.label}</div>
+                <div className="flex gap-4">
+                  <label className="inline-flex items-center">
+                    <input
+                      type="checkbox"
+                      className="form-checkbox"
+                      checked={mesuresPreventionAvSelections[opt.value]?.EE || false}
+                      onChange={() =>
+                        toggleMeasureSelection(
+                          opt.value,
+                          "EE",
+                          mesuresPreventionAvSelections,
+                          setMesuresPreventionAvSelections
+                        )
+                      }
+                      disabled={isSubmitting || isSavingDraft}
+                    />
+                    <span className="ml-1">E.E</span>
+                  </label>
+                  <label className="inline-flex items-center">
+                    <input
+                      type="checkbox"
+                      className="form-checkbox"
+                      checked={mesuresPreventionAvSelections[opt.value]?.EU || false}
+                      onChange={() =>
+                        toggleMeasureSelection(
+                          opt.value,
+                          "EU",
+                          mesuresPreventionAvSelections,
+                          setMesuresPreventionAvSelections
+                        )
+                      }
+                      disabled={isSubmitting || isSavingDraft}
+                    />
+                    <span className="ml-1">E.U</span>
+                  </label>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
 
         {/* Mesures de Prévention - PENDANT LE TRAVAIL */}
-<section className="mb-8">
-  <h2 className="text-xl font-semibold mb-4">Mesures de Prévention - PENDANT LE TRAVAIL</h2>
-  <div className="grid grid-cols-1 gap-4">
-    {mesuresPnOptions.map((opt) => (
-      <div key={opt.value}>
-        <div>{opt.label}</div>
-        <div className="flex gap-2">
-          <label className="inline-flex items-center">
-            <input
-              type="checkbox"
-              className="form-checkbox"
-              checked={mesuresPreventionPnSelections[opt.value]?.EE || false}
-              onChange={() =>
-                toggleMeasureSelection(
-                  opt.value,
-                  "EE",
-                  mesuresPreventionPnSelections,
-                  setMesuresPreventionPnSelections
-                )
-              }
-            />
-            <span className="ml-1">E.E</span>
-          </label>
-          <label className="inline-flex items-center">
-            <input
-              type="checkbox"
-              className="form-checkbox"
-              checked={mesuresPreventionPnSelections[opt.value]?.EU || false}
-              onChange={() =>
-                toggleMeasureSelection(
-                  opt.value,
-                  "EU",
-                  mesuresPreventionPnSelections,
-                  setMesuresPreventionPnSelections
-                )
-              }
-            />
-            <span className="ml-1">E.U</span>
-          </label>
-        </div>
-      </div>
-    ))}
-  </div>
-</section>
+        <section className="mb-8">
+          <h2 className="text-xl font-semibold mb-4">Mesures de Prévention - PENDANT LE TRAVAIL</h2>
+          <div className="grid grid-cols-1 gap-4">
+            {mesuresPnOptions.map((opt) => (
+              <div key={opt.value} className="border p-3 rounded">
+                <div className="font-medium mb-2">{opt.label}</div>
+                <div className="flex gap-4">
+                  <label className="inline-flex items-center">
+                    <input
+                      type="checkbox"
+                      className="form-checkbox"
+                      checked={mesuresPreventionPnSelections[opt.value]?.EE || false}
+                      onChange={() =>
+                        toggleMeasureSelection(
+                          opt.value,
+                          "EE",
+                          mesuresPreventionPnSelections,
+                          setMesuresPreventionPnSelections
+                        )
+                      }
+                      disabled={isSubmitting || isSavingDraft}
+                    />
+                    <span className="ml-1">E.E</span>
+                  </label>
+                  <label className="inline-flex items-center">
+                    <input
+                      type="checkbox"
+                      className="form-checkbox"
+                      checked={mesuresPreventionPnSelections[opt.value]?.EU || false}
+                      onChange={() =>
+                        toggleMeasureSelection(
+                          opt.value,
+                          "EU",
+                          mesuresPreventionPnSelections,
+                          setMesuresPreventionPnSelections
+                        )
+                      }
+                      disabled={isSubmitting || isSavingDraft}
+                    />
+                    <span className="ml-1">E.U</span>
+                  </label>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
 
-        {/* Submit Button */}
-        <div className="text-center">
-          <button type="submit" className="px-8 py-3 bg-indigo-600 text-white rounded-md font-semibold">
-            Valider le Permis de Feu
+        {/* Submit Buttons */}
+        <div className="text-center flex gap-4 justify-center">
+          {/* Save as Draft Button - Only show if not editing or if editing a planified permit */}
+          {(!isEditing || (isEditing && loadedPermisData?.status === "planified")) && (
+            <button 
+              type="button"
+              onClick={handleSaveDraft}
+              className="px-8 py-3 bg-gray-600 text-white rounded-md font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              disabled={isSubmitting || isSavingDraft}
+            >
+              {isSavingDraft ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                  Sauvegarde...
+                </>
+              ) : (
+                'Sauvegarder comme planifié'
+              )}
+            </button>
+          )}
+          
+          {/* Submit Button */}
+          <button 
+            type="submit" 
+            className="px-8 py-3 bg-indigo-600 text-white rounded-md font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            disabled={isSubmitting || isSavingDraft}
+          >
+            {isSubmitting ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                {isEditing ? 'Mise à jour...' : 'Enregistrement...'}
+              </>
+            ) : (
+              isEditing ? 'Mettre à jour le Permis' : 'Ajouter Permis de Feu'
+            )}
           </button>
         </div>
       </form>

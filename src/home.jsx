@@ -6,10 +6,12 @@ import { supabase } from "@/features/auth/utils/supabase-client";
 import { LoadingSpinner } from "@/components/loadingspinner";
 import { Badge } from "@/components/ui/badge";
 import notificationSound from "@/assets/notification.mp3";
+import StatutTimer from "./features/permis-de-feu/components/StatutTimer";
 
 const ConsignationHome = () => {
   const [consignations, setConsignations] = useState([]);
   const [permis, setPermis] = useState([]);
+  const [rowsWithTimers, setRowsWithTimers] = useState([]); // Add state for permis with timers
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const notificationAudio = useRef(new Audio(notificationSound));
@@ -37,6 +39,76 @@ const ConsignationHome = () => {
     return data;
   };
 
+  // Add function to get remaining status (from PermisDeFeuList logic)
+  const getRemainingStatus = (timerString) => {
+    if (!timerString) return null;
+    return new Date(timerString).getTime() - Date.now();
+  };
+
+  // Add function to check if row is critical (from PermisDeFeuList logic)
+  const isRowCritical = (row) => {
+    const t1 = getRemainingStatus(row?.timer_15min);
+    const t2 = getRemainingStatus(row?.timer_2h);
+    const t3 = getRemainingStatus(row?.timer_dejeuner_15min);
+
+    return (
+      (t1 && t1 <= 300000) ||
+      (t2 && t2 <= 300000) ||
+      (t3 && t3 <= 300000)
+    );
+  };
+
+  // Enhanced fetchPermis function with timer logic (from PermisDeFeuList)
+  const fetchPermis = async () => {
+    const { data: permisData, error: permisError } = await supabase
+      .from("permis_de_feu")
+      .select(`
+        *,
+        responsables:persons!resp_surveillance_id(name),
+        zones:zones!lieu_id(name)
+      `)
+          .not("status", "in", "(planified,archived)") // ADD THIS LINE
+
+      .order("created_at", { ascending: false });
+
+    if (permisError || !permisData) {
+      console.error("Error fetching permis:", permisError);
+      return;
+    }
+
+    const { data: timers, error: timerError } = await supabase
+      .from("timer_end")
+      .select("pdf_id, timer_15min, timer_2h, timer_dejeuner_15min");
+
+    if (timerError) {
+      console.error("Error fetching timers:", timerError);
+      setPermis(permisData);
+      return;
+    }
+
+    // Merge timer timestamps into rows
+    const merged = permisData.map(row => {
+      const timerRow = timers.find(t => t.pdf_id === row.id);
+      return {
+        ...row,
+        timer_15min: timerRow?.timer_15min,
+        timer_2h: timerRow?.timer_2h,
+        timer_dejeuner_15min: timerRow?.timer_dejeuner_15min,
+      };
+    });
+
+    const updatedRows = merged.map(row => ({
+      ...row,
+      remaining_15min: row.timer_15min ? new Date(row.timer_15min).getTime() - Date.now() : null,
+      remaining_2h: row.timer_2h ? new Date(row.timer_2h).getTime() - Date.now() : null,
+      remaining_dej: row.timer_dejeuner_15min ? new Date(row.timer_dejeuner_15min).getTime() - Date.now() : null,
+      isCritical: isRowCritical(row), // Add critical status
+    }));
+
+    setRowsWithTimers(updatedRows);
+    setPermis(permisData); // Keep original for compatibility
+  };
+
   // Realtime subscription
   useEffect(() => {
     const unlockAudio = () => {
@@ -48,8 +120,8 @@ const ConsignationHome = () => {
         })
         .catch(() => {});
     };
-    document.addEventListener("click", unlockAudio, { once: true });
 
+    document.addEventListener("click", unlockAudio, { once: true });
     const channel = supabase
       .channel("consignations-ch")
       .on(
@@ -114,17 +186,8 @@ const ConsignationHome = () => {
       if (cErr) console.error("Erreur fetch consignations:", cErr);
       else setConsignations(groupConsignations(cData));
 
-      // Permis de Feu
-      const { data: pData, error: pErr } = await supabase
-        .from("permis_de_feu")
-        .select(`
-          *,
-          responsables:persons!resp_surveillance_id(name),
-          zones:zones!lieu_id(name)
-        `)
-        .order("created_at", { ascending: false });
-      if (pErr) console.error("Erreur fetch permis:", pErr);
-      else setPermis(pData);
+      // Fetch Permis de Feu with enhanced logic
+      await fetchPermis();
 
       setLoading(false);
     };
@@ -229,13 +292,13 @@ const ConsignationHome = () => {
     },
   ];
 
-  // Columns for Permis de Feu
+  // Updated Permis de Feu columns to match PermisDeFeuList exactly
   const permisColumns = [
     {
       name: "Heure de début",
-      selector: (r) =>
-        r.heure_debut
-          ? new Date(r.heure_debut).toLocaleString("fr-FR", {
+      selector: (row) =>
+        row.heure_debut
+          ? new Date(row.heure_debut).toLocaleString("fr-FR", {
               year: "numeric",
               month: "2-digit",
               day: "2-digit",
@@ -248,9 +311,9 @@ const ConsignationHome = () => {
     },
     {
       name: "Heure de fin",
-      selector: (r) =>
-        r.heure_fin
-          ? new Date(r.heure_fin).toLocaleString("fr-FR", {
+      selector: (row) =>
+        row.heure_fin
+          ? new Date(row.heure_fin).toLocaleString("fr-FR", {
               year: "numeric",
               month: "2-digit",
               day: "2-digit",
@@ -263,24 +326,29 @@ const ConsignationHome = () => {
     },
     {
       name: "Lieu",
-      selector: (r) => r.zones?.name || "N/A",
+      selector: (row) =>
+        row.zones && row.zones.name ? row.zones.name : "N/A",
       sortable: true,
     },
     {
       name: "Nom responsable",
-      selector: (r) => r.responsables?.name || "N/A",
+      selector: (row) =>
+        row.responsables && row.responsables.name ? row.responsables.name : "N/A",
       sortable: true,
     },
     {
       name: "Statut",
-      selector: () => "en cours",
-      cell: () => <Badge className="px-2 py-1 text-xs bg-green-600 text-white">en cours</Badge>,
+      cell: row => <StatutTimer row={row} />,
       sortable: false,
     },
     {
       name: "Type",
       selector: () => "permis de feu",
-      cell: () => <Badge className="px-2 py-1 text-xs bg-blue-600 text-white">permis de feu</Badge>,
+      cell: () => (
+        <Badge className="px-2 py-1 text-xs bg-blue-600 text-white">
+          permis de feu
+        </Badge>
+      ),
       sortable: false,
     },
   ];
@@ -338,6 +406,17 @@ const ConsignationHome = () => {
         fontFamily: "Segoe UI, Roboto, sans-serif",
         "&:hover": { backgroundColor: "rgba(30, 255, 0, 0.27)", color: "#000" },
         "&:active": { backgroundColor: "rgba(0, 255, 42, 0.27)", color: "#000" },
+      },
+    },
+  ];
+
+  // Add conditional row styles for Permis de Feu critical rows (from PermisDeFeuList)
+  const permisConditionalRowStyles = [
+    {
+      when: row => row.isCritical === true,
+      style: {
+        backgroundColor: "#ffe5e5",
+        color: "#b00000",
       },
     },
   ];
@@ -416,23 +495,38 @@ const ConsignationHome = () => {
             />
           </div>
 
-          {/* Permis de Feu */}
+          {/* Enhanced Permis de Feu */}
           <div className="bg-white rounded-lg shadow-lg p-6">
             <div className="flex flex-col sm:flex-row justify-between items-center mb-6">
-              <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">Permis de Feu</h1>
-              <Link to="/permisdefeu">
-                <button className="ml-4 rounded-md bg-green-700 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-green-500 active:bg-green-800 transition-colors">
-                  Ajouter un permis de feu
-                </button>
-              </Link>
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-4 sm:mb-0">
+                Permis de Feu
+              </h1>
+              <div className="flex gap-2">
+                <Link to="/multiconsarch">
+                  <button
+                    type="button"
+                    className="rounded-md bg-gray-700 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-gray-500 active:bg-gray-800 transition-colors"
+                  >
+                    Archives
+                  </button>
+                </Link>
+                <Link to="/permisdefeu">
+                  <button
+                    type="button"
+                    className="rounded-md bg-green-700 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-green-500 active:bg-green-800 transition-colors"
+                  >
+                    Ajouter un permis de feu
+                  </button>
+                </Link>
+              </div>
             </div>
             <DataTable
               columns={permisColumns}
-              data={permis}
+              data={rowsWithTimers} // Use the enhanced data with timers
               customStyles={customStyles}
               fixedHeader
               fixedHeaderScrollHeight="400px"
-              conditionalRowStyles={conditionalRowStyles}
+              // conditionalRowStyles={permisConditionalRowStyles} // Use critical row highlighting
               onRowClicked={handleRowClickPermis}
               highlightOnHover
               pointerOnHover

@@ -67,6 +67,69 @@ const DeconsignationPage = () => {
     fetchData();
   }, []);
 
+
+useEffect(() => {
+  const fetchConsignation = async () => {
+    // Only proceed if we have an ID
+    if (id) {
+      // Fetch the consignation record with its related data
+      const { data, error } = await supabase
+        .from("consignations")
+        .select(`
+          *,
+          entreprise:entreprise_id(id, name),
+          demandeur:demandeur_id(id, name, entreprise_id)
+        `)
+        .eq("id", Number(id))
+        .single();
+      
+      if (error) {
+        console.error("Erreur lors de la récupération de la consignation:", error);
+        return;
+      }
+      
+      // If we have data with entreprise, set the selectedEntreprise
+      if (data && data.entreprise) {
+        const entrepriseOption = {
+          value: data.entreprise.id,
+          label: data.entreprise.name
+        };
+        setSelectedEntreprise(entrepriseOption);
+        
+        // Then fetch all persons for this entreprise to populate the entreprisePersons list
+        const { data: personsData, error: personsError } = await supabase
+          .from("persons")
+          .select("id, name")
+          .eq("entreprise_id", data.entreprise.id);
+          
+        if (!personsError && personsData) {
+          const personOptions = personsData.map(p => ({ 
+            value: p.id, 
+            label: p.name 
+          }));
+          
+          setEntreprisePersons(personOptions);
+          
+          // Now set the selectedDemandeur if we have one
+          if (data.demandeur) {
+            const demandeurOption = {
+              value: data.demandeur.id,
+              label: data.demandeur.name
+            };
+            setSelectedDemandeur(demandeurOption);
+          }
+        }
+      }
+    }
+  };
+
+  // Call the function when the component mounts and entreprises are loaded
+  if (entreprises.length > 0) {
+    fetchConsignation();
+  }
+}, [id, entreprises]);
+
+
   // Mise à jour de entreprisePersons quand selectedEntreprise change
   useEffect(() => {
     if (selectedEntreprise) {
@@ -109,10 +172,6 @@ const DeconsignationPage = () => {
     }
   }, [role, entreprise, entreprises]);
 
-
-
-
-
   // Vider les personnes lorsque l'entreprise change
   useEffect(() => {
     if (selectedDeconsignateur) {
@@ -120,21 +179,28 @@ const DeconsignationPage = () => {
     }
   }, [selectedEntrepriseUtilisatrice]);
 
-    // Vider les personnes lorsque l'entreprise change
-    useEffect(() => {
-      if (selectedDemandeur) {
-        setSelectedDemandeur(null);
-      }
-    }, [selectedEntreprise]);
+const [isInitialLoad, setIsInitialLoad] = useState(true);
 
+// Modify the useEffect that fetches consignation data to set isInitialLoad to false when done
+useEffect(() => {
+  const fetchConsignation = async () => {
+    // ... your copied code to fetch consignation ...
+    
+    // Add this at the end of the function
+    setIsInitialLoad(false);
+  };
 
+  if (entreprises.length > 0 && isInitialLoad) {
+    fetchConsignation();
+  }
+}, [id, entreprises, isInitialLoad]);
 
-
-
-
-
-
-
+// Then modify the useEffect that clears selectedDemandeur
+useEffect(() => {
+  if (selectedDemandeur && !isInitialLoad) {
+    setSelectedDemandeur(null);
+  }
+}, [selectedEntreprise, isInitialLoad]);
 
 
   // Initialiser SignaturePad sur le canvas en fonction de l'étape
@@ -230,13 +296,6 @@ const DeconsignationPage = () => {
     }
   };
 
-
-
-
-
-
-  
-
   // Gestion finale de la soumission
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -256,37 +315,34 @@ const DeconsignationPage = () => {
       }
     }
 
+    // Process the new entreprise first
+    let finalEntreprise = selectedEntreprise;
+    if (selectedEntreprise && selectedEntreprise.__isNew__) {
+      const { data, error } = await supabase
+        .from("entreprises")
+        .insert({ name: selectedEntreprise.label })
+        .select();
+      if (error) console.error("Erreur lors de l'insertion de la nouvelle entreprise :", error);
+      else {
+        finalEntreprise = { value: Number(data[0].id), label: data[0].name };
+        setEntreprises((prev) => [...prev, finalEntreprise]);
+      }
+    }
 
-// Process the new entreprise first
-let finalEntreprise = selectedEntreprise;
-if (selectedEntreprise && selectedEntreprise.__isNew__) {
-  const { data, error } = await supabase
-    .from("entreprises")
-    .insert({ name: selectedEntreprise.label })
-    .select();
-  if (error) console.error("Erreur lors de l'insertion de la nouvelle entreprise :", error);
-  else {
-    finalEntreprise = { value: Number(data[0].id), label: data[0].name };
-    setEntreprises((prev) => [...prev, finalEntreprise]);
-  }
-}
-
-// Then process the new demandeur using the persisted entreprise id
-let finalDemandeur = selectedDemandeur;
-if (selectedDemandeur && selectedDemandeur.__isNew__) {
-  const newPerson = { name: selectedDemandeur.label };
-  if (finalEntreprise) { // Use finalEntreprise instead of selectedEntreprise
-    newPerson.entreprise_id = Number(finalEntreprise.value);
-  }
-  const { data, error } = await supabase.from("persons").insert(newPerson).select();
-  if (error) console.error("Erreur lors de l'insertion du nouveau demandeur :", error);
-  else {
-    finalDemandeur = { value: Number(data[0].id), label: data[0].name };
-    setDemandeurs((prev) => [...prev, finalDemandeur]);
-  }
-}
-
-    
+    // Then process the new demandeur using the persisted entreprise id
+    let finalDemandeur = selectedDemandeur;
+    if (selectedDemandeur && selectedDemandeur.__isNew__) {
+      const newPerson = { name: selectedDemandeur.label };
+      if (finalEntreprise) { // Use finalEntreprise instead of selectedEntreprise
+        newPerson.entreprise_id = Number(finalEntreprise.value);
+      }
+      const { data, error } = await supabase.from("persons").insert(newPerson).select();
+      if (error) console.error("Erreur lors de l'insertion du nouveau demandeur :", error);
+      else {
+        finalDemandeur = { value: Number(data[0].id), label: data[0].name };
+        setDemandeurs((prev) => [...prev, finalDemandeur]);
+      }
+    }
 
     let finalEntrepriseUtilisatrice = selectedEntrepriseUtilisatrice;
     // Construction du payload final.
@@ -316,20 +372,59 @@ if (selectedDemandeur && selectedDemandeur.__isNew__) {
       return;
     }
 
-    // Mettre à jour optionnellement le statut de la consignation en "deconsigné"
+    // New code for multi-consignation handling
     try {
-      const { data, error } = await supabase
+      // First, get the current consignation to check if it's part of a multi-consignation
+      const { data: currentConsignation } = await supabase
         .from("consignations")
-        .update({ status: "deconsigné" })
+        .select("multi_consignation_id")
         .eq("id", Number(id))
-        .select();
-      if (error) console.error("Erreur lors de la mise à jour de la consignation :", error);
+        .single();
+      
+      if (currentConsignation?.multi_consignation_id) {
+        // Check if it's the last active consignation in the group
+        const { data: activeConsignations } = await supabase
+          .from("consignations")
+          .select("id")
+          .eq("multi_consignation_id", currentConsignation.multi_consignation_id)
+          .in("status", ["pending", "confirmed"]);
+        
+        // Count how many active consignations remain (including this one)
+        const activeCount = activeConsignations?.length || 0;
+        
+        if (activeCount > 1) {
+          // This is NOT the last active consignation, so auto-archive it
+          await supabase
+            .from("consignations")
+            .update({ status: "archived" })
+            .eq("id", Number(id));
+            
+          console.log("Consignation automatiquement archivée (partie d'une multi-consignation)");
+          navigate("/consignationlist");
+        } else {
+          // This IS the last active consignation, mark as deconsigné and go to details
+          await supabase
+            .from("consignations")
+            .update({ status: "deconsigné" })
+            .eq("id", Number(id));
+            
+          console.log("Dernière consignation dans le groupe, marquée comme déconsignée");
+          navigate(`/consignationdetails/${id}`);
+        }
+      } else {
+        // Not part of a multi-consignation, regular flow
+        await supabase
+          .from("consignations")
+          .update({ status: "deconsigné" })
+          .eq("id", Number(id));
+          
+        console.log("Consignation individuelle déconsignée");
+        navigate("/consignationlist");
+      }
     } catch (err) {
       console.error("Erreur inattendue :", err);
+      navigate("/consignationlist");
     }
-
-    console.log("Déconsignation insérée avec succès ! " + dataToInsert);
-    navigate("/consignationlist");
   };
 
   const handleSubmitCaseDecForcee = async () => {
@@ -389,19 +484,59 @@ if (selectedDemandeur && selectedDemandeur.__isNew__) {
       return;
     }
 
+    // New code for multi-consignation handling
     try {
-      const { data, error } = await supabase
+      // First, get the current consignation to check if it's part of a multi-consignation
+      const { data: currentConsignation } = await supabase
         .from("consignations")
-        .update({ status: "deconsigné" })
+        .select("multi_consignation_id")
         .eq("id", Number(id))
-        .select();
-      if (error) console.error("Erreur lors de la mise à jour de la consignation :", error);
+        .single();
+      
+      if (currentConsignation?.multi_consignation_id) {
+        // Check if it's the last active consignation in the group
+        const { data: activeConsignations } = await supabase
+          .from("consignations")
+          .select("id")
+          .eq("multi_consignation_id", currentConsignation.multi_consignation_id)
+          .in("status", ["pending", "confirmed"]);
+        
+        // Count how many active consignations remain (including this one)
+        const activeCount = activeConsignations?.length || 0;
+        
+        if (activeCount > 1) {
+          // This is NOT the last active consignation, so auto-archive it
+          await supabase
+            .from("consignations")
+            .update({ status: "archived" })
+            .eq("id", Number(id));
+            
+          console.log("Consignation automatiquement archivée (partie d'une multi-consignation)");
+          navigate("/consignationlist");
+        } else {
+          // This IS the last active consignation, mark as deconsigné and go to details
+          await supabase
+            .from("consignations")
+            .update({ status: "deconsigné" })
+            .eq("id", Number(id));
+            
+          console.log("Dernière consignation dans le groupe, marquée comme déconsignée");
+          navigate(`/consignationdetails/${id}`);
+        }
+      } else {
+        // Not part of a multi-consignation, regular flow
+        await supabase
+          .from("consignations")
+          .update({ status: "deconsigné" })
+          .eq("id", Number(id));
+          
+        console.log("Consignation individuelle déconsignée");
+        navigate("/consignationlist");
+      }
     } catch (err) {
       console.error("Erreur inattendue :", err);
+      navigate("/consignationlist");
     }
-
-    console.log("Déconsignation insérée avec succès !");
-    navigate("/consignationlist");
   };
 
   const disabled = role === "technicien" ? true : false;
@@ -499,7 +634,7 @@ if (selectedDemandeur && selectedDemandeur.__isNew__) {
                     className="mr-2"
                   />
                   <span>
-                    JE DÉCLARE QUE LES TRAVAUX OBJET DE LA PRÉSENTE CONSIGNATION ONT ÉTÉ ACHEVÉS. EN CONSÉQUENCE DE QUOI L’OUVRAGE REMIS EN BON ORDRE PEUT ÊTRE DÉCONSIGNÉ.
+                    JE DÉCLARE QUE LES TRAVAUX OBJET DE LA PRÉSENTE CONSIGNATION ONT ÉTÉ ACHEVÉS. EN CONSÉQUENCE DE QUOI L'OUVRAGE REMIS EN BON ORDRE PEUT ÊTRE DÉCONSIGNÉ.
                   </span>
                 </label>
                 {errors.checkboxStep1 && <p className="mt-1 text-red-600">{errors.checkboxStep1}</p>}
