@@ -32,7 +32,7 @@ function Login({ className, ...props }) {
 
   useEffect(() => {
     if (user) {
-      navigate("/consignationList");
+      navigate("/home");
     }
   }, [user, navigate]);
 
@@ -62,7 +62,7 @@ function Login({ className, ...props }) {
         return;
       }
 
-      navigate("/consignationList");
+      navigate("/home");
     } catch (err) {
       setError("Une erreur est survenue lors de la connexion.");
       console.error(err);
@@ -74,7 +74,7 @@ function Login({ className, ...props }) {
   const handleGoogleLogin = async () => {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: `${window.location.origin}/consignationList` },
+      options: { redirectTo: `${window.location.origin}/home` },
     });
     if (error) setError("La connexion avec Google a échoué");
   };
