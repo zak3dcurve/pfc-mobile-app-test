@@ -7,6 +7,86 @@ import { useAuth } from "@/features/auth/utils/auth-context";
 import { set } from "zod";
 import jsPDF from 'jspdf';
 
+
+
+// ✅ ADD THIS ENTIRE COMPONENT TO YOUR FILE
+
+const PhotoModal = ({ photos, onClose }) => {
+  return (
+    // Transparent backdrop with blur effect
+    <div 
+      className="fixed inset-0 backdrop-blur-sm bg-black/20 flex justify-center items-center z-50 p-2 sm:p-4" 
+      onClick={onClose} // Close modal if you click the background
+    >
+      {/* The modal content container - responsive */}
+      <div 
+        className="bg-white rounded-lg w-full max-w-6xl max-h-[95vh] flex flex-col shadow-2xl"
+        onClick={e => e.stopPropagation()} // Prevents modal from closing when clicking inside it
+      >
+        {/* Header - sticky */}
+        <div className="flex justify-between items-center border-b p-3 sm:p-4 bg-white rounded-t-lg">
+          <h2 className="text-lg sm:text-xl font-bold text-gray-800">Photos de Vérification</h2>
+          <button 
+            onClick={onClose} 
+            className="text-2xl sm:text-3xl font-bold text-gray-500 hover:text-gray-700 transition-colors w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100"
+          >
+            &times;
+          </button>
+        </div>
+        
+        {/* Scrollable content */}
+        <div className="flex-1 overflow-y-auto p-3 sm:p-4">
+          {/* The grid of photos - responsive */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
+            {photos.map(photo => (
+              <div key={photo.id} className="rounded-lg overflow-hidden shadow-md bg-gray-50">
+                <img 
+                  src={photo.photo_url} 
+                  alt="Verification" 
+                  className="w-full h-48 sm:h-56 lg:h-64 object-cover hover:scale-105 transition-transform duration-200 cursor-pointer" 
+                  onClick={(e) => {
+                    // Optional: Open image in full screen on click
+                    e.stopPropagation();
+                    window.open(photo.photo_url, '_blank');
+                  }}
+                />
+              </div>
+            ))}
+          </div>
+          
+          {/* Empty state */}
+          {photos.length === 0 && (
+            <div className="text-center py-8">
+              <p className="text-gray-500">Aucune photo disponible</p>
+            </div>
+          )}
+        </div>
+        
+        {/* Footer - optional */}
+        <div className="border-t p-3 sm:p-4 bg-gray-50 rounded-b-lg">
+          <p className="text-sm text-gray-600 text-center">
+            {photos.length} photo{photos.length > 1 ? 's' : ''} • Cliquez sur une image pour l'agrandir
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 const PermisDeFeuDetails = () => {
   const { id } = useParams();
   const [permis, setPermis] = useState(null);
@@ -21,6 +101,9 @@ const PermisDeFeuDetails = () => {
   const [selectedFacteursAggravants, setSelectedFacteursAggravants] = useState([]);
   const [selectedMesuresAvant, setSelectedMesuresAvant] = useState([]);
   const [selectedMesuresPendant, setSelectedMesuresPendant] = useState([]);
+
+    const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedPhotos, setSelectedPhotos] = useState([]);
   
   const navigate = useNavigate();
   const { entreprise } = useAuth();
@@ -122,9 +205,10 @@ const PermisDeFeuDetails = () => {
         const { data, error } = await supabase
           .from("verification_form")
           .select(`
-            *,
-            intervenant_person:persons!intervenant(name)
-          `)
+  *,
+  intervenant_person:persons!intervenant(name),
+  verification_photos(id, photo_url)
+`)
           .eq("pdf_id", id)
           .order("date", { ascending: true });
 
@@ -197,6 +281,32 @@ const PermisDeFeuDetails = () => {
 
     fetchJunctionData();
   }, [id]);
+
+
+
+// ✅ ADD THIS HANDLER FUNCTION
+const openPhotoModal = (photos) => {
+  setSelectedPhotos(photos);
+  setIsModalOpen(true);
+};
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
   const generatePDF = async () => {
     setGeneratingPdf(true);
@@ -1009,6 +1119,18 @@ const PermisDeFeuDetails = () => {
                           <span className="font-semibold">Motif:</span> {form.motif}
                         </div>
                       )}
+
+                      {/* ✅ ADD THIS ENTIRE BLOCK */}
+    {form.verification_photos && form.verification_photos.length > 0 && (
+      <div className="col-span-2 mt-2">
+        <button
+          onClick={() => openPhotoModal(form.verification_photos)}
+          className="bg-indigo-600 text-white px-3 py-1 text-sm rounded hover:bg-indigo-500"
+        >
+          Voir les {form.verification_photos.length} Photo(s)
+        </button>
+      </div>
+    )}
                     </div>
                   </div>
                 ))}
@@ -1051,6 +1173,9 @@ const PermisDeFeuDetails = () => {
           </div>
         </div>
       </div>
+
+    {/* ✅ ADD THIS LINE */}
+    {isModalOpen && <PhotoModal photos={selectedPhotos} onClose={() => setIsModalOpen(false)} />}
     </div>
   );
 };
