@@ -734,20 +734,54 @@ if (selectedDemandeur && selectedDemandeur.__isNew__) {
 
   return (
     <>
-      {/* <Navbar /> peut être activé si nécessaire */}
-      <div className="min-h-screen flex items-center justify-center bg-gray-100 p-2 sm:p-4">
-        <form onSubmit={handleSubmit} className={`w-full space-y-6 sm:space-y-12 bg-white shadow-md rounded-lg ${
-          isMobile ? 'max-w-full p-4' : 'max-w-2xl p-6'
-        }`}>
+      {/* Main container with proper navbar spacing */}
+      <div className="min-h-screen bg-gray-50 sm:bg-gray-100 pt-20 pb-6">
+        <div className="container mx-auto px-3 sm:px-6 lg:px-8">
+          <div className="flex justify-center">
+            <form onSubmit={handleSubmit} className={`w-full bg-white shadow-lg rounded-none sm:rounded-xl border-0 sm:border sm:border-gray-200 ${
+              isMobile ? 'max-w-full p-4 space-y-6' : 'max-w-4xl p-8 space-y-8'
+            }`}>
+
+              {/* Form Header */}
+              <div className="border-b border-gray-200 pb-4 sm:pb-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h1 className={`font-bold text-gray-900 ${isMobile ? 'text-lg' : 'text-2xl'}`}>
+                      Consignation
+                    </h1>
+                    <p className={`text-gray-600 ${isMobile ? 'text-sm mt-1' : 'text-base mt-2'}`}>
+                      Étape {currentStep} sur 4
+                    </p>
+                  </div>
+                  {/* Progress indicator */}
+                  <div className="flex space-x-2">
+                    {[1, 2, 3, 4].map((step) => (
+                      <div
+                        key={step}
+                        className={`w-2 h-2 rounded-full ${
+                          step <= currentStep ? 'bg-indigo-600' : 'bg-gray-300'
+                        }`}
+                      />
+                    ))}
+                  </div>
+                </div>
+              </div>
+
     {currentStep === 1 && (
-      <div className="border-b border-gray-900/10 pb-12">
-        <h2 className="text-base font-semibold text-gray-900">BORDEREAU DE CONSIGNATION - DÉCONSIGNATION</h2>
-        <p className="mt-1 text-sm text-gray-600">Fournissez les détails du site et des travaux.</p>
-        <div className="mt-10 grid grid-cols-1 gap-x-6 gap-y-8 sm:grid-cols-2">
+      <div className="space-y-6">
+        <div>
+          <h2 className={`font-semibold text-gray-900 ${isMobile ? 'text-base' : 'text-lg'}`}>
+            BORDEREAU DE CONSIGNATION - DÉCONSIGNATION
+          </h2>
+          <p className={`text-gray-600 ${isMobile ? 'text-sm mt-1' : 'text-base mt-2'}`}>
+            Fournissez les détails du site et des travaux.
+          </p>
+        </div>
+        <div className={`grid grid-cols-1 gap-6 ${isMobile ? '' : 'sm:grid-cols-2 gap-x-6 gap-y-8'}`}>
           {/* Site (if applicable) */}
           {role !== "technicien" && (
             <div className="sm:col-span-1">
-              <label htmlFor="site_id" className="block text-sm font-medium text-gray-900">
+              <label htmlFor="site_id" className={`block font-medium text-gray-900 ${isMobile ? 'text-sm mb-2' : 'text-sm mb-2'}`}>
                 Site
               </label>
               <CreatableSelect
@@ -758,7 +792,21 @@ if (selectedDemandeur && selectedDemandeur.__isNew__) {
                 options={sites}
                 isClearable
                 placeholder="Sélectionnez ou créez un site..."
-                className="mt-2"
+                styles={{
+                  control: (base) => ({
+                    ...base,
+                    minHeight: isMobile ? '44px' : '40px',
+                    borderColor: errors.site_id ? '#ef4444' : base.borderColor,
+                    boxShadow: 'none',
+                    '&:hover': {
+                      borderColor: errors.site_id ? '#ef4444' : '#d1d5db'
+                    }
+                  }),
+                  placeholder: (base) => ({
+                    ...base,
+                    fontSize: isMobile ? '16px' : '14px'
+                  })
+                }}
               />
               {errors.site_id && (
                 <p className="mt-2 text-sm text-red-600">{errors.site_id.join(", ")}</p>
@@ -767,7 +815,7 @@ if (selectedDemandeur && selectedDemandeur.__isNew__) {
           )}
           {/* Zone */}
           <div className="sm:col-span-1">
-            <label htmlFor="zone_id" className="block text-sm font-medium text-gray-900">
+            <label htmlFor="zone_id" className={`block font-medium text-gray-900 ${isMobile ? 'text-sm mb-2' : 'text-sm mb-2'}`}>
               Zone
             </label>
             <CreatableSelect
@@ -778,7 +826,21 @@ if (selectedDemandeur && selectedDemandeur.__isNew__) {
               options={siteZones}
               isClearable
               placeholder="Sélectionnez ou créez une zone..."
-              className="mt-2"
+              styles={{
+                control: (base) => ({
+                  ...base,
+                  minHeight: isMobile ? '44px' : '40px',
+                  borderColor: errors.zone_id ? '#ef4444' : base.borderColor,
+                  boxShadow: 'none',
+                  '&:hover': {
+                    borderColor: errors.zone_id ? '#ef4444' : '#d1d5db'
+                  }
+                }),
+                placeholder: (base) => ({
+                  ...base,
+                  fontSize: isMobile ? '16px' : '14px'
+                })
+              }}
             />
             {errors.zone_id && (
               <p className="mt-2 text-sm text-red-600">{errors.zone_id.join(", ")}</p>
@@ -811,16 +873,21 @@ if (selectedDemandeur && selectedDemandeur.__isNew__) {
           </div>
           {/* Désignation des Travaux – full width */}
           <div className="sm:col-span-2">
-            <label htmlFor="designation_travaux" className="block text-sm font-medium text-gray-900">
-              Désignation des Travaux
+            <label htmlFor="designation_travaux" className={`block font-medium text-gray-900 ${isMobile ? 'text-sm mb-2' : 'text-sm mb-2'}`}>
+              Désignation des Travaux <span className="text-red-500">*</span>
             </label>
             <textarea
               id="designation_travaux"
               name="designation_travaux"
               value={formData.designation_travaux}
               onChange={handleChange}
-              className={`mt-2 block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline outline-1 outline-gray-300 placeholder:text-gray-400 focus:outline-2 focus:outline-indigo-600 ${
-                isMobile ? 'min-h-[120px]' : 'min-h-[100px]'
+              placeholder="Décrivez les travaux à effectuer..."
+              className={`block w-full rounded-md bg-white px-3 py-3 text-gray-900 border transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 ${
+                isMobile ? 'min-h-[120px] text-base' : 'min-h-[100px] text-sm'
+              } ${
+                errors.designation_travaux
+                  ? 'border-red-500 bg-red-50'
+                  : 'border-gray-300 hover:border-gray-400'
               }`}
             ></textarea>
             {errors.designation_travaux && (
@@ -829,7 +896,7 @@ if (selectedDemandeur && selectedDemandeur.__isNew__) {
           </div>
           {/* Équipements */}
           <div className="sm:col-span-1">
-            <label htmlFor="equipements" className="block text-sm font-medium text-gray-900">
+            <label htmlFor="equipements" className={`block font-medium text-gray-900 ${isMobile ? 'text-sm mb-2' : 'text-sm mb-2'}`}>
               Équipements
             </label>
             <textarea
@@ -837,8 +904,9 @@ if (selectedDemandeur && selectedDemandeur.__isNew__) {
               name="equipements"
               value={formData.equipements}
               onChange={handleChange}
-              className={`mt-2 block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline outline-1 outline-gray-300 placeholder:text-gray-400 focus:outline-2 focus:outline-indigo-600 ${
-                isMobile ? 'min-h-[100px]' : 'min-h-[80px]'
+              placeholder="Liste des équipements..."
+              className={`block w-full rounded-md bg-white px-3 py-3 text-gray-900 border border-gray-300 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 hover:border-gray-400 ${
+                isMobile ? 'min-h-[100px] text-base' : 'min-h-[80px] text-sm'
               }`}
             ></textarea>
             {errors.equipements && (
@@ -907,9 +975,15 @@ if (selectedDemandeur && selectedDemandeur.__isNew__) {
 
           {/* Étape 2 – Détails du consignateur avec sélection de l'entreprise */}
           {currentStep === 2 && (
-            <div className="border-b border-gray-900/10 pb-12">
-              <h2 className="text-base font-semibold text-gray-900">BORDEREAU DE CONSIGNATION - DÉCONSIGNATION</h2>
-              <p className="mt-1 text-sm text-gray-600">Détails du consignateur</p>
+            <div className="space-y-6">
+              <div>
+                <h2 className={`font-semibold text-gray-900 ${isMobile ? 'text-base' : 'text-lg'}`}>
+                  Détails du consignateur
+                </h2>
+                <p className={`text-gray-600 ${isMobile ? 'text-sm mt-1' : 'text-base mt-2'}`}>
+                  Informations sur le consignateur et l'entreprise.
+                </p>
+              </div>
               <div className="mt-10 grid grid-cols-1 gap-x-6 gap-y-8 sm:grid-cols-6">
                 {/* Sélection de l'entreprise */}
                 {role === "technicien" ? (
@@ -1213,81 +1287,87 @@ if (selectedDemandeur && selectedDemandeur.__isNew__) {
 
           {/* Boutons de navigation */}
           {currentStep === 1 && (
-            <div className={`mt-6 flex items-center gap-x-4 ${
-              isMobile ? 'flex-col space-y-3' : 'justify-between'
+            <div className={`mt-8 pt-6 border-t border-gray-200 flex items-center ${
+              isMobile ? 'flex-col gap-3' : 'justify-between gap-4'
             }`}>
               <button
                 type="button"
-                onClick={handleReturn}
-                className={`rounded-md bg-gray-200 px-4 py-2 text-sm font-semibold text-gray-900 shadow-sm hover:bg-gray-300 transition-colors ${
-                  isMobile ? 'w-full h-12 order-2' : ''
-                }`}
-              >
-                Retour
-              </button>
-              <button
-                type="button"
                 onClick={handleNextStep}
-                className={`rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 transition-colors ${
-                  isMobile ? 'w-full h-12 order-1' : ''
+                className={`rounded-lg bg-indigo-600 px-6 py-3 font-semibold text-white shadow-sm hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-colors ${
+                  isMobile ? 'w-full h-12 order-1 text-base' : 'text-sm'
                 }`}
               >
                 Suivant
+              </button>
+              <button
+                type="button"
+                onClick={handleReturn}
+                className={`rounded-lg bg-gray-200 px-6 py-3 font-semibold text-gray-900 shadow-sm hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2 transition-colors ${
+                  isMobile ? 'w-full h-12 order-2 text-base' : 'text-sm'
+                }`}
+              >
+                Retour
               </button>
             </div>
           )}
 
 {currentStep !== 1 && (
-  <div className={`mt-6 flex items-center gap-x-4 ${
-    isMobile ? 'flex-col space-y-3' : 'justify-end'
+  <div className={`mt-8 pt-6 border-t border-gray-200 flex items-center ${
+    isMobile ? 'flex-col gap-3' : 'justify-end gap-4'
   }`}>
+    {/* Primary Action Button - Always first on mobile */}
+    {currentStep === 4 ? (
+      <button
+        type="submit"
+        className={`rounded-lg bg-indigo-600 px-6 py-3 font-semibold text-white shadow-sm hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-colors ${
+          isMobile ? 'w-full h-12 order-1 text-base' : 'text-sm'
+        }`}
+      >
+        Envoyer
+      </button>
+    ) : currentStep < 4 && currentStep > 1 ? (
+      <button
+        type="button"
+        onClick={handleNextStep}
+        className={`rounded-lg bg-indigo-600 px-6 py-3 font-semibold text-white shadow-sm hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-colors ${
+          isMobile ? 'w-full h-12 order-1 text-base' : 'text-sm'
+        }`}
+      >
+        Suivant
+      </button>
+    ) : null}
+
+    {/* Secondary Action - Planified button for step 3 */}
     {currentStep === 3 && (
       <button
         type="button"
         onClick={handlePlanifiedClick}
-        className={`rounded-md bg-green-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-green-500 transition-colors ${
-          isMobile ? 'w-full h-12 order-1' : ''
+        className={`rounded-lg bg-green-600 px-6 py-3 font-semibold text-white shadow-sm hover:bg-green-500 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-colors ${
+          isMobile ? 'w-full h-12 order-2 text-base' : 'text-sm'
         }`}
       >
         Ajouter comme planifié
       </button>
     )}
+
+    {/* Back Button - Always last on mobile */}
     {currentStep > 1 && (
       <button
         type="button"
         onClick={handlePreviousStep}
-        className={`rounded-md bg-gray-200 px-4 py-2 text-sm font-semibold text-gray-900 shadow-sm hover:bg-gray-300 transition-colors ${
-          isMobile ? 'w-full h-12 order-3' : ''
+        className={`rounded-lg bg-gray-200 px-6 py-3 font-semibold text-gray-900 shadow-sm hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2 transition-colors ${
+          isMobile ? 'w-full h-12 order-3 text-base' : 'text-sm'
         }`}
       >
         Précédent
       </button>
     )}
-    {currentStep < 4 && currentStep > 1 && (
-      <button
-        type="button"
-        onClick={handleNextStep}
-        className={`rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 transition-colors ${
-          isMobile ? 'w-full h-12 order-2' : ''
-        }`}
-      >
-        Suivant
-      </button>
-    )}
-    {currentStep === 4 && (
-      <button
-        type="submit"
-        className={`rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 transition-colors ${
-          isMobile ? 'w-full h-12 order-2' : ''
-        }`}
-      >
-        Envoyer
-      </button>
-    )}
   </div>
 )}
 
-        </form>
+            </form>
+          </div>
+        </div>
       </div>
       {showTimeDialog && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
