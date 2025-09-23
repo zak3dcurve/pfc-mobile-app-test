@@ -8,7 +8,10 @@ import { set } from "zod";
 import jsPDF from 'jspdf';
 import { useIsMobile } from "@/hooks/use-mobile";
 import Navbar from "@/components/app-navbar";
-
+import { Capacitor } from '@capacitor/core';
+import { Filesystem, Directory } from '@capacitor/filesystem';
+import { Share } from '@capacitor/share';
+import { FileOpener } from '@capacitor-community/file-opener';
 
 
 // ✅ ADD THIS ENTIRE COMPONENT TO YOUR FILE
@@ -997,8 +1000,53 @@ const openPhotoModal = (photos) => {
       pdf.text(`N° ${String(permis.id).padStart(4, '0')}`, 190, 285, { align: 'right' });
       
       // Download PDF
-      const fileName = `Permis_de_Feu_${String(permis.id).padStart(4, '0')}_${formatDateOnly(permis.heure_debut).replace(/\//g, '-')}.pdf`;
+          // REPLACE THE pdf.save() LINE WITH THIS:
+    const fileName = `Permis_de_Feu_${String(permis.id).padStart(4, '0')}_${formatDateOnly(permis.heure_debut).replace(/\//g, '-')}.pdf`;
+    
+    // Check if running on mobile/native platform
+    if (Capacitor.isNativePlatform()) {
+      // For mobile devices
+      try {
+        // Convert PDF to base64
+        const pdfOutput = pdf.output('datauristring');
+        const base64Data = pdfOutput.split(',')[1];
+        
+        // Save the file using Capacitor Filesystem
+        const savedFile = await Filesystem.writeFile({
+          path: fileName,
+          data: base64Data,
+          directory: Directory.Documents,
+        });
+        
+        // Option 1: Open the PDF with the default PDF viewer
+        try {
+          await FileOpener.open({
+            filePath: savedFile.uri,
+            contentType: 'application/pdf',
+          });
+        } catch (openError) {
+          console.log('Could not open file, trying share instead', openError);
+          
+          // Option 2: Share the PDF if opening fails
+          await Share.share({
+            title: fileName,
+            text: `Permis de Feu ${String(permis.id).padStart(4, '0')}`,
+            url: savedFile.uri,
+            dialogTitle: 'Partager le PDF',
+          });
+        }
+        
+        // Optionally show a success message
+        alert(`PDF sauvegardé: ${fileName}`);
+        
+      } catch (mobileError) {
+        console.error('Error saving PDF on mobile:', mobileError);
+        alert('Erreur lors de la sauvegarde du PDF sur mobile');
+      }
+    } else {
+      // For web browsers - use the original method
       pdf.save(fileName);
+    }
       
     } catch (error) {
       console.error('Error generating PDF:', error);
