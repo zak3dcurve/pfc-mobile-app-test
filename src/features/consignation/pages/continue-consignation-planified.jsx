@@ -3,10 +3,12 @@ import { useParams, useNavigate } from "react-router-dom";
 import CreatableSelect from "react-select/creatable";
 import SignaturePad from "signature_pad";
 import { supabase } from "@/features/auth/utils/supabase-client";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 const ContinueConsignation = () => {
   const { id } = useParams(); // Consignation id from URL
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
 
   // Step state: we start at step 3 (demandeur details)
   const [currentStep, setCurrentStep] = useState(3);
@@ -89,47 +91,58 @@ const ContinueConsignation = () => {
     fetchDemandeurs();
   }, []);
 
+  // Setup signature pads with responsive sizing
+  const setupSignaturePad = (canvasRef, signaturePadRef) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const container = canvas.parentElement;
+    const containerWidth = container.offsetWidth;
+    const canvasHeight = isMobile ? 120 : 160;
+
+    canvas.width = containerWidth - 4;
+    canvas.height = canvasHeight;
+    canvas.style.width = `${containerWidth - 4}px`;
+    canvas.style.height = `${canvasHeight}px`;
+
+    signaturePadRef.current = new SignaturePad(canvas, {
+      backgroundColor: 'rgba(255,255,255,0)',
+      velocityFilterWeight: 0.7,
+      minWidth: isMobile ? 1 : 0.5,
+      maxWidth: isMobile ? 3 : 2.5,
+      penColor: 'black',
+    });
+  };
+
   // Initialize the demandeur signature pad when on step 3
   useEffect(() => {
     if (currentStep === 3 && sigPadDemandeur.current) {
-      const canvas = sigPadDemandeur.current;
-      const ratio = Math.max(window.devicePixelRatio || 1, 1);
-      canvas.width = canvas.offsetWidth * ratio;
-      canvas.height = canvas.offsetHeight * ratio;
-      canvas.getContext("2d").scale(ratio, ratio);
-      signaturePadDemandeur.current = new SignaturePad(canvas, {
-        minWidth: 1,
-        maxWidth: 3,
-        penColor: "black",
-      });
+      setupSignaturePad(sigPadDemandeur, signaturePadDemandeur);
     }
-  }, [currentStep]);
+  }, [currentStep, isMobile]);
 
   // Initialize the attestation signature pad when on step 4
   useEffect(() => {
     if (currentStep === 4 && sigPadAttestation.current) {
-      const canvas = sigPadAttestation.current;
-      const ratio = Math.max(window.devicePixelRatio || 1, 1);
-      canvas.width = canvas.offsetWidth * ratio;
-      canvas.height = canvas.offsetHeight * ratio;
-      canvas.getContext("2d").scale(ratio, ratio);
-      signaturePadAttestation.current = new SignaturePad(canvas, {
-        minWidth: 1,
-        maxWidth: 3,
-        penColor: "black",
-      });
+      setupSignaturePad(sigPadAttestation, signaturePadAttestation);
     }
-  }, [currentStep]);
+  }, [currentStep, isMobile]);
 
   const clearDemandeurSignature = () => {
     if (signaturePadDemandeur.current) {
       signaturePadDemandeur.current.clear();
+    }
+    if (isMobile && navigator.vibrate) {
+      navigator.vibrate(50);
     }
   };
 
   const clearAttestationSignature = () => {
     if (signaturePadAttestation.current) {
       signaturePadAttestation.current.clear();
+    }
+    if (isMobile && navigator.vibrate) {
+      navigator.vibrate(50);
     }
   };
 
@@ -202,8 +215,10 @@ const ContinueConsignation = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
-      <form onSubmit={handleSubmit} className="w-full max-w-4xl space-y-12 bg-white p-6 shadow-md rounded-lg">
+    <div className="min-h-screen flex items-center justify-center bg-gray-100 p-2 sm:p-4 pt-20">
+      <form onSubmit={handleSubmit} className={`w-full space-y-6 sm:space-y-12 bg-white shadow-md rounded-lg ${
+        isMobile ? 'max-w-full p-4' : 'max-w-4xl p-6'
+      }`}>
         {currentStep === 3 && (
           <div className="border-b border-gray-900/10 pb-12">
             <h2 className="text-base font-semibold text-gray-900">Étape 3 : Détails du Demandeur</h2>
@@ -227,11 +242,19 @@ const ContinueConsignation = () => {
               {/* Demandeur signature */}
               <div>
                 <label className="block text-sm font-medium text-gray-900">Signature du Demandeur</label>
-                <canvas ref={sigPadDemandeur} className="mt-2 border rounded w-80 h-40 mx-auto"></canvas>
+                <div className="w-full border border-gray-300 rounded-lg overflow-hidden" style={{ touchAction: 'none' }}>
+                  <canvas
+                    ref={sigPadDemandeur}
+                    className="w-full bg-white touch-none"
+                    style={{ touchAction: 'none' }}
+                  ></canvas>
+                </div>
                 <button
                   type="button"
                   onClick={clearDemandeurSignature}
-                  className="mt-2 rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white"
+                  className={`mt-2 rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-500 transition-colors ${
+                    isMobile ? 'w-full h-12' : ''
+                  }`}
                 >
                   Effacer la signature
                 </button>
@@ -240,11 +263,13 @@ const ContinueConsignation = () => {
                 )}
               </div>
               {/* Navigation: move to step 4 */}
-              <div className="flex justify-end">
+              <div className={`flex ${isMobile ? 'justify-center' : 'justify-end'}`}>
                 <button
                   type="button"
                   onClick={handleNextStep}
-                  className="rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white"
+                  className={`rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500 transition-colors ${
+                    isMobile ? 'w-full h-12' : ''
+                  }`}
                 >
                   Suivant
                 </button>
@@ -272,8 +297,10 @@ const ContinueConsignation = () => {
                   onChange={(e) =>
                     setFormData((prev) => ({ ...prev, date_consignation: e.target.value }))
                   }
-                  className="mt-2 block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900 
-                             outline outline-1 outline-gray-300 placeholder:text-gray-400 focus:outline-2 focus:outline-indigo-600"
+                  className={`mt-2 block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900
+                             outline outline-1 outline-gray-300 placeholder:text-gray-400 focus:outline-2 focus:outline-indigo-600 ${
+                               isMobile ? 'h-12' : ''
+                             }`}
                 />
                 {errors.date_consignation && (
                   <p className="mt-2 text-sm text-red-600">{errors.date_consignation}</p>
@@ -291,11 +318,19 @@ const ContinueConsignation = () => {
               {/* Attestation signature */}
               <div className="sm:col-span-6">
                 <label className="block text-sm font-medium text-gray-900">Signature d'attestation</label>
-                <canvas ref={sigPadAttestation} className="mt-2 border rounded w-80 h-40 mx-auto"></canvas>
+                <div className="w-full border border-gray-300 rounded-lg overflow-hidden" style={{ touchAction: 'none' }}>
+                  <canvas
+                    ref={sigPadAttestation}
+                    className="w-full bg-white touch-none"
+                    style={{ touchAction: 'none' }}
+                  ></canvas>
+                </div>
                 <button
                   type="button"
                   onClick={clearAttestationSignature}
-                  className="mt-2 rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500"
+                  className={`mt-2 rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 transition-colors ${
+                    isMobile ? 'w-full h-12' : ''
+                  }`}
                 >
                   Effacer la signature
                 </button>
@@ -305,17 +340,23 @@ const ContinueConsignation = () => {
               </div>
             </div>
             {/* Navigation buttons for step 4 */}
-            <div className="flex justify-end gap-4 mt-6">
+            <div className={`flex gap-4 mt-6 ${
+              isMobile ? 'flex-col' : 'justify-end'
+            }`}>
               <button
                 type="button"
                 onClick={handlePreviousStep}
-                className="rounded-md bg-gray-200 px-3 py-2 text-sm font-semibold text-gray-900"
+                className={`rounded-md bg-gray-200 px-4 py-2 text-sm font-semibold text-gray-900 hover:bg-gray-300 transition-colors ${
+                  isMobile ? 'w-full h-12 order-2' : ''
+                }`}
               >
                 Précédent
               </button>
               <button
                 type="submit"
-                className="rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white"
+                className={`rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500 transition-colors ${
+                  isMobile ? 'w-full h-12 order-1' : ''
+                }`}
               >
                 Envoyer
               </button>

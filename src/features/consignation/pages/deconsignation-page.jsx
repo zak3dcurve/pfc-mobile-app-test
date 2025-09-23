@@ -4,11 +4,13 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import CreatableSelect from "react-select/creatable";
 import SignaturePad from "signature_pad";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 const DeconsignationPage = () => {
   const navigate = useNavigate();
   const { role, site, entreprise } = useAuth();
   const { id } = useParams();
+  const isMobile = useIsMobile();
 
   // États de sélection
   const [selectedEntreprise, setSelectedEntreprise] = useState(null);
@@ -205,34 +207,48 @@ useEffect(() => {
 
   // Initialiser SignaturePad sur le canvas en fonction de l'étape
   useEffect(() => {
-    if (step === 1 && sigPadDemandeur.current) {
-      const canvas = sigPadDemandeur.current;
-      const ratio = Math.max(window.devicePixelRatio || 1, 1);
-      canvas.width = canvas.offsetWidth * ratio;
-      canvas.height = canvas.offsetHeight * ratio;
-      canvas.getContext("2d").scale(ratio, ratio);
+    const setupSignaturePad = (canvasRef, signaturePadRef) => {
+      if (canvasRef.current) {
+        const canvas = canvasRef.current;
+        const container = canvas.parentElement;
+        const containerWidth = container.offsetWidth;
+        const canvasHeight = isMobile ? 120 : 160;
 
-      signaturePadDemandeur.current = new SignaturePad(canvas, {
-        minWidth: 1,
-        maxWidth: 3,
-        penColor: "black",
-      });
-    }
+        // Set canvas dimensions based on container
+        canvas.width = containerWidth - 4; // Account for border
+        canvas.height = canvasHeight;
 
-    if (step === 2 && sigPadDeconsignateur.current) {
-      const canvas = sigPadDeconsignateur.current;
-      const ratio = Math.max(window.devicePixelRatio || 1, 1);
-      canvas.width = canvas.offsetWidth * ratio;
-      canvas.height = canvas.offsetHeight * ratio;
-      canvas.getContext("2d").scale(ratio, ratio);
+        // Set CSS dimensions to match
+        canvas.style.width = `${containerWidth - 4}px`;
+        canvas.style.height = `${canvasHeight}px`;
 
-      signaturePadDeconsignateur.current = new SignaturePad(canvas, {
-        minWidth: 1,
-        maxWidth: 3,
-        penColor: "black",
-      });
-    }
-  }, [step]);
+        // Clear any existing signature pad
+        if (signaturePadRef.current) {
+          signaturePadRef.current.off();
+        }
+
+        signaturePadRef.current = new SignaturePad(canvas, {
+          backgroundColor: 'rgba(255,255,255,0)',
+          penColor: 'rgb(0, 0, 0)',
+          velocityFilterWeight: 0.7,
+          minWidth: isMobile ? 1 : 0.5,
+          maxWidth: isMobile ? 3 : 2.5,
+        });
+      }
+    };
+
+    // Small delay to ensure DOM is ready
+    const timer = setTimeout(() => {
+      if (step === 1) {
+        setupSignaturePad(sigPadDemandeur, signaturePadDemandeur);
+      }
+      if (step === 2) {
+        setupSignaturePad(sigPadDeconsignateur, signaturePadDeconsignateur);
+      }
+    }, 100);
+
+    return () => clearTimeout(timer);
+  }, [step, isMobile]);
 
   // Mise à jour de formData pour les inputs non checkbox
   const handleChange = (e) => {
@@ -546,11 +562,19 @@ useEffect(() => {
     if (signaturePadDemandeur.current) {
       signaturePadDemandeur.current.clear();
     }
+    // Add haptic feedback on mobile
+    if (isMobile && navigator.vibrate) {
+      navigator.vibrate(50);
+    }
   };
 
   const clearSignatureDeconsignateur = () => {
     if (signaturePadDeconsignateur.current) {
       signaturePadDeconsignateur.current.clear();
+    }
+    // Add haptic feedback on mobile
+    if (isMobile && navigator.vibrate) {
+      navigator.vibrate(50);
     }
   };
 
@@ -560,7 +584,7 @@ useEffect(() => {
 
   return (
     <>
-      <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
+      <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4 pt-20">
         <form className="w-full max-w-4xl space-y-12 bg-white p-6 shadow-md rounded-lg" onSubmit={handleSubmit}>
           {step === 1 && (
             <div className="border-b border-gray-900/10 pb-12">
@@ -611,7 +635,13 @@ useEffect(() => {
               {/* Signature du demandeur */}
               <div className="sm:col-span-6 mt-10">
                 <label className="block text-sm font-medium text-gray-900">Signature du demandeur</label>
-                <canvas ref={sigPadDemandeur} className="mt-2 border rounded w-80 h-40 mx-auto"></canvas>
+                <div className="border-2 border-dashed border-gray-300 rounded-lg p-2 bg-gray-50 touch-manipulation mt-2">
+                  <canvas
+                    ref={sigPadDemandeur}
+                    className="w-full border border-gray-200 rounded bg-white touch-none"
+                    style={{ touchAction: 'none' }}
+                  />
+                </div>
                 <button
                   type="button"
                   onClick={clearSignatureDemandeur}
@@ -649,17 +679,17 @@ useEffect(() => {
                   Retour
                 </button>
                 <div className="flex gap-x-2">
-                <button
-  type="button"
-  onClick={() => {
-    if (validateStep()) {
-      setShowForcedDialog(true);
-    }
-  }}
-  className="rounded-md bg-red-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-500"
->
-  Déconsignation forcée
-</button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (validateStep()) {
+                        setShowForcedDialog(true);
+                      }
+                    }}
+                    className="rounded-md bg-red-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-500"
+                  >
+                    Déconsignation forcée
+                  </button>
                   <button
                     type="button"
                     onClick={handleNextStep}
@@ -722,7 +752,13 @@ useEffect(() => {
               {/* Signature du déconsignateur */}
               <div className="sm:col-span-6 mt-10">
                 <label className="block text-sm font-medium text-gray-900">Signature du déconsignateur</label>
-                <canvas ref={sigPadDeconsignateur} className="mt-2 border rounded w-80 h-40 mx-auto"></canvas>
+                <div className="border-2 border-dashed border-gray-300 rounded-lg p-2 bg-gray-50 touch-manipulation mt-2">
+                  <canvas
+                    ref={sigPadDeconsignateur}
+                    className="w-full border border-gray-200 rounded bg-white touch-none"
+                    style={{ touchAction: 'none' }}
+                  />
+                </div>
                 <button
                   type="button"
                   onClick={clearSignatureDeconsignateur}
@@ -770,6 +806,7 @@ useEffect(() => {
           )}
         </form>
       </div>
+
       {showForcedDialog && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-lg">

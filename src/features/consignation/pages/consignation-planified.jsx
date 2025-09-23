@@ -13,11 +13,13 @@ import {
 import SignaturePad from "signature_pad";
 import { LoadingSpinner } from "@/components/loadingspinner";
 import { Badge } from "@/components/ui/badge";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 const ConsignationPlanifiedPage = () => {
   const [consignations, setConsignations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedRow, setSelectedRow] = useState("");
+  const isMobile = useIsMobile();
 
   const navigate = useNavigate();
 
@@ -287,27 +289,36 @@ useEffect(() => {
   };
 
   return (
-    <>
-      <div className="bg-gray-200 flex items-center justify-center min-h-screen px-4 sm:px-6 lg:px-8">
-        <div className="bg-white rounded-lg shadow-lg w-full max-w-7xl mx-auto p-6">
+    <div className="bg-gray-200 flex items-center justify-center min-h-screen px-2 sm:px-4 lg:px-8 pt-20">
+        <div className={`bg-white rounded-lg shadow-lg w-full max-w-7xl mx-auto ${
+          isMobile ? 'p-4' : 'p-6'
+        }`}>
           <div className="flex flex-col sm:flex-row justify-between items-center mb-6">
-            <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-4 sm:mb-0">
+            <h1 className={`font-bold text-gray-800 mb-4 sm:mb-0 ${
+              isMobile ? 'text-xl text-center' : 'text-2xl sm:text-3xl'
+            }`}>
               Consignations Planifiées
             </h1>
 
-            <div>
-              <Link to="/consignationList">
+            <div className={`flex gap-2 ${
+              isMobile ? 'flex-col w-full' : 'flex-row'
+            }`}>
+              <Link to="/consignationList" className={isMobile ? 'w-full' : ''}>
                 <button
                   type="button"
-                  className="rounded-md bg-fuchsia-700 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-fuchsia-500 active:bg-fuchsia-800 transition-colors"
+                  className={`rounded-md bg-fuchsia-700 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-fuchsia-500 active:bg-fuchsia-800 transition-colors ${
+                    isMobile ? 'w-full h-12' : ''
+                  }`}
                 >
                   Consignations Actives
                 </button>
               </Link>
-              <Link to="/consignation">
+              <Link to="/consignation" className={isMobile ? 'w-full' : ''}>
                 <button
                   type="button"
-                  className="ml-4 rounded-md bg-green-700 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-green-500 active:bg-green-800 transition-colors"
+                  className={`rounded-md bg-green-700 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-green-500 active:bg-green-800 transition-colors ${
+                    isMobile ? 'w-full h-12' : 'ml-4'
+                  }`}
                 >
                   Ajouter une consignation
                 </button>
@@ -320,16 +331,20 @@ useEffect(() => {
             data={consignations}
             customStyles={customStyles}
             fixedHeader
-            fixedHeaderScrollHeight="400px"
+            fixedHeaderScrollHeight={isMobile ? "60vh" : "400px"}
             conditionalRowStyles={conditionalRowStyles}
             onRowClicked={handleRowClick}
+            highlightOnHover
             pointerOnHover
+            responsive={true}
+            dense={isMobile}
+            pagination={true}
+            paginationPerPage={isMobile ? 10 : 20}
+            paginationRowsPerPageOptions={isMobile ? [5, 10, 15] : [10, 20, 30, 50]}
             noDataComponent={<div className="p-4 text-center">Aucun enregistrement à afficher</div>}
-
           />
         </div>
       </div>
-    </>
   );
 };
 

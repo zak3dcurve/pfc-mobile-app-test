@@ -9,7 +9,7 @@
       --sidebar-border: 220 13% 91%;
       --sidebar-ring: 217.2 91.2% 59.8%;
     }
-   
+
     .dark {
       --sidebar-background: 240 5.9% 10%;
       --sidebar-foreground: 240 4.8% 95.9%;
@@ -19,5 +19,126 @@
       --sidebar-accent-foreground: 240 4.8% 95.9%;
       --sidebar-border: 240 3.7% 15.9%;
       --sidebar-ring: 217.2 91.2% 59.8%;
+    }
+
+    /* Mobile optimizations */
+    body {
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    /* Improve touch targets on mobile */
+    @media (max-width: 768px) {
+      button,
+      [role="button"],
+      input,
+      select,
+      textarea {
+        min-height: 44px; /* Apple's recommended touch target size */
+      }
+
+      /* Better scrolling on mobile */
+      * {
+        -webkit-overflow-scrolling: touch;
+      }
+
+      /* Disable zoom on input focus */
+      input[type="text"],
+      input[type="email"],
+      input[type="password"],
+      input[type="number"],
+      input[type="tel"],
+      input[type="url"],
+      select,
+      textarea {
+        font-size: 16px; /* Prevents zoom on iOS */
+      }
+    }
+
+    /* Signature canvas touch improvements */
+    .touch-manipulation {
+      touch-action: manipulation;
+    }
+
+    .touch-none {
+      touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
+      -moz-user-select: none;
+      -ms-user-select: none;
+    }
+
+    /* Mobile viewport fix */
+    html {
+      height: 100%;
+      height: var(--viewport-height, 100vh);
+    }
+
+    /* Mobile form animations */
+    @media (max-width: 768px) {
+      .form-step {
+        animation: slideInUp 0.3s ease-out;
+      }
+
+      @keyframes slideInUp {
+        from {
+          opacity: 0;
+          transform: translateY(20px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      /* Better focus styles for mobile */
+      input:focus,
+      select:focus,
+      textarea:focus {
+        outline: none;
+        ring: 2px solid #3b82f6;
+        border-color: #3b82f6;
+        transform: scale(1.02);
+        transition: all 0.2s ease;
+      }
+
+      /* Improve button press feedback */
+      button:active,
+      [role="button"]:active {
+        transform: scale(0.98);
+        transition: transform 0.1s ease;
+      }
+
+      /* Better scrolling */
+      .mobile-scroll {
+        -webkit-overflow-scrolling: touch;
+        scroll-behavior: smooth;
+      }
+
+      /* Hide scrollbars on mobile */
+      .hide-scrollbar {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+      }
+      .hide-scrollbar::-webkit-scrollbar {
+        display: none;
+      }
+    }
+
+    /* Dark mode improvements */
+    @media (prefers-color-scheme: dark) {
+      .signature-container {
+        background-color: #1f2937;
+        border-color: #374151;
+      }
+    }
+
+    /* Accessibility improvements */
+    @media (prefers-reduced-motion: reduce) {
+      * {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+      }
     }
   }

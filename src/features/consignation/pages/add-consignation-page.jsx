@@ -6,6 +6,7 @@ import { useNavigate } from "react-router-dom";
 import CreatableSelect from "react-select/creatable";
 import Select from "react-select";
 import { useAuth } from "@/features/auth/utils/auth-context";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 // Fonction d'aide pour obtenir la date/heure locale formatée
 const getFormattedLocal = () => {
@@ -34,6 +35,7 @@ const step3Schema = z.object({});
 
 const AddConsignation = () => {
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
 
   const { user, role, site, entreprise } = useAuth();
 
@@ -223,45 +225,41 @@ const [consigne_pour_ee, setConsignePourEE] = useState(true);
     }
   }, [formData.consigne_pour_moi, selectedConsignateur, selectedEntrepriseUtilisatrice]);
 
+  // Setup signature pads with responsive sizing
+  const setupSignaturePad = (canvasRef, signaturePadRef) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const container = canvas.parentElement;
+    const containerWidth = container.offsetWidth;
+    const canvasHeight = isMobile ? 120 : 160;
+
+    canvas.width = containerWidth - 4;
+    canvas.height = canvasHeight;
+    canvas.style.width = `${containerWidth - 4}px`;
+    canvas.style.height = `${canvasHeight}px`;
+
+    signaturePadRef.current = new SignaturePad(canvas, {
+      backgroundColor: 'rgba(255,255,255,0)',
+      velocityFilterWeight: 0.7,
+      minWidth: isMobile ? 1 : 0.5,
+      maxWidth: isMobile ? 3 : 2.5,
+      penColor: 'black',
+    });
+  };
+
   // Initialisation de SignaturePad pour le canvas concerné
   useEffect(() => {
     if (currentStep === 2 && sigPadConsignateur.current) {
-      const canvas = sigPadConsignateur.current;
-      const ratio = Math.max(window.devicePixelRatio || 1, 1);
-      canvas.width = canvas.offsetWidth * ratio;
-      canvas.height = canvas.offsetHeight * ratio;
-      canvas.getContext("2d").scale(ratio, ratio);
-      signaturePadConsignateur.current = new SignaturePad(canvas, {
-        minWidth: 1,
-        maxWidth: 3,
-        penColor: "black",
-      });
+      setupSignaturePad(sigPadConsignateur, signaturePadConsignateur);
     }
     if (currentStep === 3 && sigPadDemandeur.current) {
-      const canvas = sigPadDemandeur.current;
-      const ratio = Math.max(window.devicePixelRatio || 1, 1);
-      canvas.width = canvas.offsetWidth * ratio;
-      canvas.height = canvas.offsetHeight * ratio;
-      canvas.getContext("2d").scale(ratio, ratio);
-      signaturePadDemandeur.current = new SignaturePad(canvas, {
-        minWidth: 1,
-        maxWidth: 3,
-        penColor: "black",
-      });
+      setupSignaturePad(sigPadDemandeur, signaturePadDemandeur);
     }
     if (currentStep === 4 && sigPadAttestation.current) {
-      const canvas = sigPadAttestation.current;
-      const ratio = Math.max(window.devicePixelRatio || 1, 1);
-      canvas.width = canvas.offsetWidth * ratio;
-      canvas.height = canvas.offsetHeight * ratio;
-      canvas.getContext("2d").scale(ratio, ratio);
-      signaturePadAttestation.current = new SignaturePad(canvas, {
-        minWidth: 1,
-        maxWidth: 3,
-        penColor: "black",
-      });
+      setupSignaturePad(sigPadAttestation, signaturePadAttestation);
     }
-  }, [currentStep]);
+  }, [currentStep, isMobile]);
 
   // Gestionnaire de changement des inputs
   const handleChange = (e) => {
@@ -507,17 +505,26 @@ if (selectedDemandeur && selectedDemandeur.__isNew__) {
     if (signaturePadConsignateur.current) {
       signaturePadConsignateur.current.clear();
     }
+    if (isMobile && navigator.vibrate) {
+      navigator.vibrate(50);
+    }
   };
 
   const clearSignatureDemandeur = () => {
     if (signaturePadDemandeur.current) {
       signaturePadDemandeur.current.clear();
     }
+    if (isMobile && navigator.vibrate) {
+      navigator.vibrate(50);
+    }
   };
 
   const clearSignatureAttestation = () => {
     if (signaturePadAttestation.current) {
       signaturePadAttestation.current.clear();
+    }
+    if (isMobile && navigator.vibrate) {
+      navigator.vibrate(50);
     }
   };
 
@@ -728,8 +735,10 @@ if (selectedDemandeur && selectedDemandeur.__isNew__) {
   return (
     <>
       {/* <Navbar /> peut être activé si nécessaire */}
-      <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
-  <form onSubmit={handleSubmit} className="w-full max-w-2xl space-y-12 bg-white p-6 shadow-md rounded-lg">
+      <div className="min-h-screen flex items-center justify-center bg-gray-100 p-2 sm:p-4">
+        <form onSubmit={handleSubmit} className={`w-full space-y-6 sm:space-y-12 bg-white shadow-md rounded-lg ${
+          isMobile ? 'max-w-full p-4' : 'max-w-2xl p-6'
+        }`}>
     {currentStep === 1 && (
       <div className="border-b border-gray-900/10 pb-12">
         <h2 className="text-base font-semibold text-gray-900">BORDEREAU DE CONSIGNATION - DÉCONSIGNATION</h2>
@@ -810,7 +819,9 @@ if (selectedDemandeur && selectedDemandeur.__isNew__) {
               name="designation_travaux"
               value={formData.designation_travaux}
               onChange={handleChange}
-              className="mt-2 block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline outline-1 outline-gray-300 placeholder:text-gray-400 focus:outline-2 focus:outline-indigo-600"
+              className={`mt-2 block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline outline-1 outline-gray-300 placeholder:text-gray-400 focus:outline-2 focus:outline-indigo-600 ${
+                isMobile ? 'min-h-[120px]' : 'min-h-[100px]'
+              }`}
             ></textarea>
             {errors.designation_travaux && (
               <p className="mt-2 text-sm text-red-600">{errors.designation_travaux.join(", ")}</p>
@@ -826,7 +837,9 @@ if (selectedDemandeur && selectedDemandeur.__isNew__) {
               name="equipements"
               value={formData.equipements}
               onChange={handleChange}
-              className="mt-2 block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline outline-1 outline-gray-300 placeholder:text-gray-400 focus:outline-2 focus:outline-indigo-600"
+              className={`mt-2 block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline outline-1 outline-gray-300 placeholder:text-gray-400 focus:outline-2 focus:outline-indigo-600 ${
+                isMobile ? 'min-h-[100px]' : 'min-h-[80px]'
+              }`}
             ></textarea>
             {errors.equipements && (
               <p className="mt-2 text-sm text-red-600">{errors.equipements.join(", ")}</p>
@@ -842,7 +855,9 @@ if (selectedDemandeur && selectedDemandeur.__isNew__) {
               name="pdp"
               value={formData.pdp}
               onChange={handleChange}
-              className="mt-2 block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline outline-1 outline-gray-300 placeholder:text-gray-400 focus:outline-2 focus:outline-indigo-600"
+              className={`mt-2 block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline outline-1 outline-gray-300 placeholder:text-gray-400 focus:outline-2 focus:outline-indigo-600 ${
+                isMobile ? 'min-h-[100px]' : 'min-h-[80px]'
+              }`}
             ></textarea>
             {errors.pdp && (
               <p className="mt-2 text-sm text-red-600">{errors.pdp.join(", ")}</p>
@@ -859,7 +874,9 @@ if (selectedDemandeur && selectedDemandeur.__isNew__) {
               name="cadenas_num"
               value={formData.cadenas_num}
               onChange={handleChange}
-              className="mt-2 block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline outline-1 outline-gray-300 placeholder:text-gray-400 focus:outline-2 focus:outline-indigo-600"
+              className={`mt-2 block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline outline-1 outline-gray-300 placeholder:text-gray-400 focus:outline-2 focus:outline-indigo-600 ${
+                isMobile ? 'h-12' : ''
+              }`}
             />
             {errors.cadenas_num && (
               <p className="mt-2 text-sm text-red-600">{errors.cadenas_num.join(", ")}</p>
@@ -876,7 +893,9 @@ if (selectedDemandeur && selectedDemandeur.__isNew__) {
               name="lockbox"
               value={formData.lockbox}
               onChange={handleChange}
-              className="mt-2 block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline outline-1 outline-gray-300 placeholder:text-gray-400 focus:outline-2 focus:outline-indigo-600"
+              className={`mt-2 block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline outline-1 outline-gray-300 placeholder:text-gray-400 focus:outline-2 focus:outline-indigo-600 ${
+                isMobile ? 'h-12' : ''
+              }`}
             />
             {errors.lockbox && (
               <p className="mt-2 text-sm text-red-600">{errors.lockbox.join(", ")}</p>
@@ -937,11 +956,19 @@ if (selectedDemandeur && selectedDemandeur.__isNew__) {
                 {/* Signature du consignateur */}
                 <div className="sm:col-span-6">
                   <label className="block text-sm font-medium text-gray-900">Signature du consignateur</label>
-                  <canvas ref={sigPadConsignateur} className="mt-2 border rounded w-80 h-40 mx-auto"></canvas>
+                  <div className="w-full border border-gray-300 rounded-lg overflow-hidden" style={{ touchAction: 'none' }}>
+                    <canvas
+                      ref={sigPadConsignateur}
+                      className="w-full bg-white touch-none"
+                      style={{ touchAction: 'none' }}
+                    ></canvas>
+                  </div>
                   <button
                     type="button"
                     onClick={clearSignatureConsignateur}
-                    className="mt-2 rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500"
+                    className={`mt-2 rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 transition-colors ${
+                      isMobile ? 'w-full h-12' : ''
+                    }`}
                   >
                     Effacer la signature
                   </button>
@@ -1032,11 +1059,19 @@ if (selectedDemandeur && selectedDemandeur.__isNew__) {
                 {/* Signature du demandeur */}
                 <div className="sm:col-span-6 mt-10">
                   <label className="block text-sm font-medium text-gray-900">Signature du demandeur</label>
-                  <canvas ref={sigPadDemandeur} className="mt-2 border rounded w-80 h-40 mx-auto"></canvas>
+                  <div className="w-full border border-gray-300 rounded-lg overflow-hidden" style={{ touchAction: 'none' }}>
+                    <canvas
+                      ref={sigPadDemandeur}
+                      className="w-full bg-white touch-none"
+                      style={{ touchAction: 'none' }}
+                    ></canvas>
+                  </div>
                   <button
                     type="button"
                     onClick={clearSignatureDemandeur}
-                    className="mt-2 rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500"
+                    className={`mt-2 rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 transition-colors ${
+                      isMobile ? 'w-full h-12' : ''
+                    }`}
                   >
                     Effacer la signature
                   </button>
@@ -1092,11 +1127,19 @@ if (selectedDemandeur && selectedDemandeur.__isNew__) {
                 {/* Signature du demandeur */}
                 <div className="sm:col-span-6 mt-10">
                   <label className="block text-sm font-medium text-gray-900">Signature du demandeur</label>
-                  <canvas ref={sigPadDemandeur} className="mt-2 border rounded w-80 h-40 mx-auto"></canvas>
+                  <div className="w-full border border-gray-300 rounded-lg overflow-hidden" style={{ touchAction: 'none' }}>
+                    <canvas
+                      ref={sigPadDemandeur}
+                      className="w-full bg-white touch-none"
+                      style={{ touchAction: 'none' }}
+                    ></canvas>
+                  </div>
                   <button
                     type="button"
                     onClick={clearSignatureDemandeur}
-                    className="mt-2 rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500"
+                    className={`mt-2 rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 transition-colors ${
+                      isMobile ? 'w-full h-12' : ''
+                    }`}
                   >
                     Effacer la signature
                   </button>
@@ -1127,7 +1170,9 @@ if (selectedDemandeur && selectedDemandeur.__isNew__) {
                     onChange={(e) =>
                       setFormData((prev) => ({ ...prev, date_consignation: e.target.value }))
                     }
-                    className="mt-2 block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline outline-1 outline-gray-300 placeholder:text-gray-400 focus:outline-2 focus:outline-indigo-600"
+                    className={`mt-2 block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline outline-1 outline-gray-300 placeholder:text-gray-400 focus:outline-2 focus:outline-indigo-600 ${
+                      isMobile ? 'h-12' : ''
+                    }`}
                   />
                 </div>
                 {/* Déclaration */}
@@ -1142,11 +1187,19 @@ if (selectedDemandeur && selectedDemandeur.__isNew__) {
                 {/* Signature d'attestation */}
                 <div className="sm:col-span-6">
                   <label className="block text-sm font-medium text-gray-900">Signature d'attestation</label>
-                  <canvas ref={sigPadAttestation} className="mt-2 border rounded w-80 h-40 mx-auto"></canvas>
+                  <div className="w-full border border-gray-300 rounded-lg overflow-hidden" style={{ touchAction: 'none' }}>
+                    <canvas
+                      ref={sigPadAttestation}
+                      className="w-full bg-white touch-none"
+                      style={{ touchAction: 'none' }}
+                    ></canvas>
+                  </div>
                   <button
                     type="button"
                     onClick={clearSignatureAttestation}
-                    className="mt-2 rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500"
+                    className={`mt-2 rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 transition-colors ${
+                      isMobile ? 'w-full h-12' : ''
+                    }`}
                   >
                     Effacer la signature
                   </button>
@@ -1160,18 +1213,24 @@ if (selectedDemandeur && selectedDemandeur.__isNew__) {
 
           {/* Boutons de navigation */}
           {currentStep === 1 && (
-            <div className="mt-6 flex items-center justify-between gap-x-6">
+            <div className={`mt-6 flex items-center gap-x-4 ${
+              isMobile ? 'flex-col space-y-3' : 'justify-between'
+            }`}>
               <button
                 type="button"
                 onClick={handleReturn}
-                className="rounded-md bg-gray-200 px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm hover:bg-gray-300"
+                className={`rounded-md bg-gray-200 px-4 py-2 text-sm font-semibold text-gray-900 shadow-sm hover:bg-gray-300 transition-colors ${
+                  isMobile ? 'w-full h-12 order-2' : ''
+                }`}
               >
                 Retour
               </button>
               <button
                 type="button"
                 onClick={handleNextStep}
-                className="rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500"
+                className={`rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 transition-colors ${
+                  isMobile ? 'w-full h-12 order-1' : ''
+                }`}
               >
                 Suivant
               </button>
@@ -1179,21 +1238,27 @@ if (selectedDemandeur && selectedDemandeur.__isNew__) {
           )}
 
 {currentStep !== 1 && (
-  <div className="mt-6 flex items-center justify-end gap-x-6">
+  <div className={`mt-6 flex items-center gap-x-4 ${
+    isMobile ? 'flex-col space-y-3' : 'justify-end'
+  }`}>
     {currentStep === 3 && (
-  <button
-    type="button"
-    onClick={handlePlanifiedClick}
-    className="rounded-md bg-green-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-green-500"
-  >
-    Ajouter comme planifié
-  </button>
-)}
+      <button
+        type="button"
+        onClick={handlePlanifiedClick}
+        className={`rounded-md bg-green-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-green-500 transition-colors ${
+          isMobile ? 'w-full h-12 order-1' : ''
+        }`}
+      >
+        Ajouter comme planifié
+      </button>
+    )}
     {currentStep > 1 && (
       <button
         type="button"
         onClick={handlePreviousStep}
-        className="rounded-md bg-gray-200 px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm hover:bg-gray-300"
+        className={`rounded-md bg-gray-200 px-4 py-2 text-sm font-semibold text-gray-900 shadow-sm hover:bg-gray-300 transition-colors ${
+          isMobile ? 'w-full h-12 order-3' : ''
+        }`}
       >
         Précédent
       </button>
@@ -1202,7 +1267,9 @@ if (selectedDemandeur && selectedDemandeur.__isNew__) {
       <button
         type="button"
         onClick={handleNextStep}
-        className="rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500"
+        className={`rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 transition-colors ${
+          isMobile ? 'w-full h-12 order-2' : ''
+        }`}
       >
         Suivant
       </button>
@@ -1210,7 +1277,9 @@ if (selectedDemandeur && selectedDemandeur.__isNew__) {
     {currentStep === 4 && (
       <button
         type="submit"
-        className="rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500"
+        className={`rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 transition-colors ${
+          isMobile ? 'w-full h-12 order-2' : ''
+        }`}
       >
         Envoyer
       </button>
@@ -1221,34 +1290,44 @@ if (selectedDemandeur && selectedDemandeur.__isNew__) {
         </form>
       </div>
       {showTimeDialog && (
-  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-    <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-lg">
-      <h3 className="text-xl font-bold mb-4">Sélectionnez la date et l'heure</h3>
-      <input
-        type="datetime-local"
-        value={datetimeValue}
-        onChange={(e) => setDatetimeValue(e.target.value)}
-        className="w-full border p-2 rounded mb-4 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-      />
-      <div className="flex justify-end space-x-4">
-        <button
-          type="button"
-          onClick={() => setShowTimeDialog(false)}
-          className="px-4 py-2 rounded bg-gray-300 hover:bg-gray-400"
-        > 
-          Annuler
-        </button>
-        <button
-          type="button"
-          onClick={handleDatetimeConfirm}
-          className="px-4 py-2 rounded bg-green-600 text-white hover:bg-green-700"
-        >
-          Confirmer
-        </button>
-      </div>
-    </div>
-  </div>
-)}
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className={`w-full rounded-lg bg-white shadow-lg ${
+            isMobile ? 'max-w-sm p-4' : 'max-w-md p-6'
+          }`}>
+            <h3 className="text-xl font-bold mb-4">Sélectionnez la date et l'heure</h3>
+            <input
+              type="datetime-local"
+              value={datetimeValue}
+              onChange={(e) => setDatetimeValue(e.target.value)}
+              className={`w-full border p-2 rounded mb-4 focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
+                isMobile ? 'h-12' : ''
+              }`}
+            />
+            <div className={`flex gap-4 ${
+              isMobile ? 'flex-col' : 'justify-end'
+            }`}>
+              <button
+                type="button"
+                onClick={() => setShowTimeDialog(false)}
+                className={`px-4 py-2 rounded bg-gray-300 hover:bg-gray-400 transition-colors ${
+                  isMobile ? 'w-full h-12 order-2' : ''
+                }`}
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                onClick={handleDatetimeConfirm}
+                className={`px-4 py-2 rounded bg-green-600 text-white hover:bg-green-700 transition-colors ${
+                  isMobile ? 'w-full h-12 order-1' : ''
+                }`}
+              >
+                Confirmer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 };

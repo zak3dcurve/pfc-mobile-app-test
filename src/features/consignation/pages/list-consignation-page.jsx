@@ -13,12 +13,14 @@ import {
 import { LoadingSpinner } from "@/components/loadingspinner";
 import { Badge } from "@/components/ui/badge";
 import notificationSound from "@/assets/notification.mp3";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 const ConsignationList = () => {
   const [consignations, setConsignations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedRow, setSelectedRow] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const isMobile = useIsMobile();
 
   const navigate = useNavigate();
   const notificationAudio = useRef(new Audio(notificationSound));
@@ -411,8 +413,7 @@ const ConsignationList = () => {
   }
 
   return (
-    <>
-      <div className="bg-gray-200 flex items-center justify-center min-h-screen px-4 sm:px-6 lg:px-8">
+    <div className="bg-gray-200 flex items-center justify-center min-h-screen px-4 sm:px-6 lg:px-8 pt-20">
         <div className="bg-white rounded-lg shadow-lg w-full max-w-7xl mx-auto p-6">
           <div className="flex flex-col sm:flex-row justify-between items-center mb-6">
             <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-4 sm:mb-0">
@@ -458,18 +459,22 @@ const ConsignationList = () => {
             data={consignations}
             customStyles={customStyles}
             fixedHeader
-            fixedHeaderScrollHeight="400px"
+            fixedHeaderScrollHeight={isMobile ? "60vh" : "400px"}
             conditionalRowStyles={conditionalRowStyles}
             onRowClicked={handleRowClick}
             highlightOnHover
             pointerOnHover
+            responsive={true}
+            dense={isMobile}
+            pagination={true}
+            paginationPerPage={isMobile ? 10 : 20}
+            paginationRowsPerPageOptions={isMobile ? [5, 10, 15] : [10, 20, 30, 50]}
             noDataComponent={
               <div className="p-4 text-center">Aucun enregistrement à afficher</div>
             }
           />
         </div>
       </div>
-    </>
   );
 };
 

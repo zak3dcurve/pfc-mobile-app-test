@@ -5,11 +5,13 @@ import { Badge } from "@/components/ui/badge";
 import { LoadingSpinner } from "@/components/loadingspinner";
 import { Link, useNavigate } from "react-router-dom";
 import StatutTimer from "../components/StatutTimer";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 const ArchivedPermisList = () => {
   const [permis, setPermis] = useState([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
 
   const [rowsWithTimers, setRowsWithTimers] = useState([]);
 
@@ -188,26 +190,36 @@ const ArchivedPermisList = () => {
   }
 
   return (
-    <div className="bg-gray-200 flex items-center justify-center min-h-screen px-4 sm:px-6 lg:px-8">
+    <div className="bg-gray-200 flex items-center justify-center min-h-screen px-2 sm:px-4 lg:px-8 pt-20">
       {/* Card container */}
-      <div className="bg-white rounded-lg shadow-lg w-full max-w-7xl mx-auto p-6">
+      <div className={`bg-white rounded-lg shadow-lg w-full max-w-7xl mx-auto ${
+        isMobile ? 'p-4' : 'p-6'
+      }`}>
         <div className="flex flex-col sm:flex-row justify-between items-center mb-6">
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-4 sm:mb-0">
+          <h1 className={`font-bold text-gray-800 mb-4 sm:mb-0 ${
+            isMobile ? 'text-xl text-center' : 'text-2xl sm:text-3xl'
+          }`}>
             Archives - Permis de Feu
           </h1>
-          <div className="flex gap-2">
-            <Link to="/listpermisdefeu">
+          <div className={`flex gap-2 ${
+            isMobile ? 'flex-col w-full' : 'flex-row'
+          }`}>
+            <Link to="/listpermisdefeu" className={isMobile ? 'w-full' : ''}>
               <button
                 type="button"
-                className="rounded-md bg-blue-700 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-blue-500 active:bg-blue-800 transition-colors"
+                className={`rounded-md bg-blue-700 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-blue-500 active:bg-blue-800 transition-colors ${
+                  isMobile ? 'w-full h-12' : ''
+                }`}
               >
                 Retour à la liste active
               </button>
             </Link>
-            <Link to="/permisdefeu">
+            <Link to="/permisdefeu" className={isMobile ? 'w-full' : ''}>
               <button
                 type="button"
-                className="rounded-md bg-green-700 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-green-500 active:bg-green-800 transition-colors"
+                className={`rounded-md bg-green-700 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-green-500 active:bg-green-800 transition-colors ${
+                  isMobile ? 'w-full h-12' : ''
+                }`}
               >
                 Ajouter un permis de feu
               </button>
@@ -217,8 +229,10 @@ const ArchivedPermisList = () => {
         
         {rowsWithTimers.length === 0 ? (
           <div className="text-center py-8">
-            <h3 className="text-lg font-medium text-gray-900 mb-2">Aucune archive trouvée</h3>
-            <p className="text-gray-500">Il n'y a actuellement aucun permis de feu archivé.</p>
+            <h3 className={`font-medium text-gray-900 mb-2 ${
+              isMobile ? 'text-base' : 'text-lg'
+            }`}>Aucune archive trouvée</h3>
+            <p className="text-gray-500 text-sm">Il n'y a actuellement aucun permis de feu archivé.</p>
           </div>
         ) : (
           <DataTable
@@ -226,10 +240,15 @@ const ArchivedPermisList = () => {
             data={rowsWithTimers}
             customStyles={customStyles}
             fixedHeader
-            fixedHeaderScrollHeight="400px"
+            fixedHeaderScrollHeight={isMobile ? "60vh" : "400px"}
             onRowClicked={handleRowClick}
             highlightOnHover
             pointerOnHover
+            responsive={true}
+            dense={isMobile}
+            pagination={true}
+            paginationPerPage={isMobile ? 10 : 20}
+            paginationRowsPerPageOptions={isMobile ? [5, 10, 15] : [10, 20, 30, 50]}
             conditionalRowStyles={conditionalRowStyles}
             noDataComponent={
               <div className="p-4 text-center">Aucun enregistrement à afficher</div>

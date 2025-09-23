@@ -5,11 +5,13 @@ import { Badge } from "@/components/ui/badge";
 import { LoadingSpinner } from "@/components/loadingspinner";
 import { Link, useNavigate } from "react-router-dom";
 import StatutTimer from "../components/StatutTimer";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 const PermisDeFeuList = () => {
   const [permis, setPermis] = useState([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
 
   const [rowsWithTimers, setRowsWithTimers] = useState([]);
 
@@ -193,7 +195,7 @@ const isRowCritical = (row) => {
   }
 
   return (
-    <div className="bg-gray-200 flex items-center justify-center min-h-screen px-4 sm:px-6 lg:px-8">
+    <div className="bg-gray-200 flex items-center justify-center min-h-screen px-4 sm:px-6 lg:px-8 pt-20">
       {/* Card container */}
       <div className="bg-white rounded-lg shadow-lg w-full max-w-7xl mx-auto p-6">
         <div className="flex flex-col sm:flex-row justify-between items-center mb-6">
@@ -224,14 +226,21 @@ const isRowCritical = (row) => {
           data={rowsWithTimers} // ✅ USE THE DYNAMIC, UPDATED DATA
           customStyles={customStyles}
           fixedHeader
-          fixedHeaderScrollHeight="400px"
+          fixedHeaderScrollHeight={isMobile ? "60vh" : "400px"}
           onRowClicked={handleRowClick}
           highlightOnHover
           pointerOnHover
           conditionalRowStyles={conditionalRowStyles}  // 🔴 Highlight critical rows
-
+          responsive={true}
+          dense={isMobile}
+          pagination={true}
+          paginationPerPage={isMobile ? 10 : 20}
+          paginationRowsPerPageOptions={isMobile ? [5, 10, 15] : [10, 20, 30, 50]}
           noDataComponent={
-            <div className="p-4 text-center">Aucun enregistrement à afficher</div>
+            <div className="p-6 text-center text-gray-500">
+              <div className="text-lg mb-2">📋</div>
+              <p>Aucun enregistrement à afficher</p>
+            </div>
           }
         />
       </div>

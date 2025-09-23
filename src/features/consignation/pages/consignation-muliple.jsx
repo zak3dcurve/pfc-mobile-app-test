@@ -7,6 +7,7 @@ import { useAuth } from "@/features/auth/utils/auth-context";
 import CreatableSelect from "react-select/creatable";
 // Import the signature component from react-signature-canvas
 import SignatureCanvas from "react-signature-canvas";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 const formatDateTime = (dateStr) => {
   if (!dateStr) return "";
@@ -25,6 +26,7 @@ const AddMultiConsignation = () => {
   const { id: parentId } = useParams(); // Parent consignation ID
   const navigate = useNavigate();
   const { user } = useAuth();
+  const isMobile = useIsMobile();
 
   // Parent (common) consignation info
   const [parentConsignation, setParentConsignation] = useState(null);
@@ -116,6 +118,9 @@ const AddMultiConsignation = () => {
   const clearSignature = () => {
     if (sigPadDemandeur.current) {
       sigPadDemandeur.current.clear();
+    }
+    if (isMobile && navigator.vibrate) {
+      navigator.vibrate(50);
     }
   };
 
@@ -232,10 +237,13 @@ const AddMultiConsignation = () => {
   }
 
   return (
-    <>
-      <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4 ">
-        <div className="w-full max-w-2xl bg-white p-8 rounded shadow mt-20">
-          <h1 className="text-3xl font-bold text-center mb-6">
+    <div className="min-h-screen flex items-center justify-center bg-gray-100 p-2 sm:p-4 pt-20">
+        <div className={`w-full bg-white rounded shadow mt-20 ${
+          isMobile ? 'max-w-full p-4' : 'max-w-2xl p-8'
+        }`}>
+          <h1 className={`font-bold text-center mb-6 ${
+            isMobile ? 'text-xl' : 'text-3xl'
+          }`}>
             Ajouter une consignation multiple
           </h1>
 
@@ -298,17 +306,24 @@ const AddMultiConsignation = () => {
                 Signature du demandeur
               </label>
               {/* Use the SignatureCanvas component instead of <canvas> */}
-              <SignatureCanvas
-                ref={sigPadDemandeur}
-                penColor="black"
-                canvasProps={{
-                  className: "mt-2 border rounded w-80 h-40 mx-auto",
-                }}
-              />
+              <div className="w-full border border-gray-300 rounded-lg overflow-hidden" style={{ touchAction: 'none' }}>
+                <SignatureCanvas
+                  ref={sigPadDemandeur}
+                  penColor="black"
+                  canvasProps={{
+                    width: isMobile ? 350 : 400,
+                    height: isMobile ? 120 : 160,
+                    className: "w-full bg-white touch-none",
+                    style: { touchAction: 'none' }
+                  }}
+                />
+              </div>
               <button
                 type="button"
                 onClick={clearSignature}
-                className="mt-2 rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white"
+                className={`mt-2 rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-500 transition-colors ${
+                  isMobile ? 'w-full h-12' : ''
+                }`}
               >
                 Effacer la signature
               </button>
@@ -367,7 +382,6 @@ const AddMultiConsignation = () => {
           </form>
         </div>
       </div>
-    </>
   );
 };
 

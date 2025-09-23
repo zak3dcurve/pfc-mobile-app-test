@@ -6,6 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/features/auth/utils/auth-context";
 import { set } from "zod";
 import jsPDF from 'jspdf';
+import { useIsMobile } from "@/hooks/use-mobile";
+import Navbar from "@/components/app-navbar";
 
 
 
@@ -107,6 +109,7 @@ const PermisDeFeuDetails = () => {
   
   const navigate = useNavigate();
   const { entreprise } = useAuth();
+  const isMobile = useIsMobile(); // Move this to the top, before any state
 
   // Helper function to format date/time in French
   const formatDateTime = (dateStr) => {
@@ -1021,73 +1024,78 @@ const openPhotoModal = (photos) => {
     );
   }
 
+
   return (
-    <div className="min-h-screen bg-gray-100 p-4">
-      <div className="max-w-2xl mx-auto bg-white p-8 mt-50 rounded shadow">
-        <h1 className="text-3xl font-bold text-center mb-6">Détails du Permis de Feu</h1>
+    <div className="min-h-screen bg-gray-100 pt-20 p-2 sm:p-4 sm:pt-24 flex items-center justify-center">
+        <div className={`bg-white rounded shadow ${
+          isMobile ? 'max-w-full p-4 w-full' : 'max-w-2xl p-8'
+        }`}>
+          <h1 className={`font-bold text-center mb-6 ${
+            isMobile ? 'text-xl' : 'text-3xl'
+          }`}>Détails du Permis de Feu</h1>
         <div className="space-y-4">
-          <div className="flex justify-between">
-            <span className="font-semibold text-gray-700">Date et Heure de début :</span>
-            <span className="text-gray-900">{formatDateTime(permis.heure_debut)}</span>
+          <div className={`flex ${isMobile ? 'flex-col' : 'justify-between'}`}>
+            <span className={`font-semibold text-gray-700 ${isMobile ? 'text-sm mb-1' : ''}`}>Date et Heure de début :</span>
+            <span className={`text-gray-900 ${isMobile ? 'text-sm' : ''}`}>{formatDateTime(permis.heure_debut)}</span>
           </div>
-          <div className="flex justify-between">
-            <span className="font-semibold text-gray-700">Date et Heure de fin :</span>
-            <span className="text-gray-900">{formatDateTime(permis.heure_fin)}</span>
+          <div className={`flex ${isMobile ? 'flex-col' : 'justify-between'}`}>
+            <span className={`font-semibold text-gray-700 ${isMobile ? 'text-sm mb-1' : ''}`}>Date et Heure de fin :</span>
+            <span className={`text-gray-900 ${isMobile ? 'text-sm' : ''}`}>{formatDateTime(permis.heure_fin)}</span>
           </div>
-          <div className="flex justify-between">
-            <span className="font-semibold text-gray-700">Responsable de la surveillance :</span>
-            <span className="text-gray-900">{permis.responsable?.name || "non défini"}</span>
+          <div className={`flex ${isMobile ? 'flex-col' : 'justify-between'}`}>
+            <span className={`font-semibold text-gray-700 ${isMobile ? 'text-sm mb-1' : ''}`}>Responsable de la surveillance :</span>
+            <span className={`text-gray-900 ${isMobile ? 'text-sm' : ''}`}>{permis.responsable?.name || "non défini"}</span>
           </div>
-          <div className="flex justify-between">
-            <span className="font-semibold text-gray-700">Responsable du site :</span>
-            <span className="text-gray-900">{permis.site_responsable?.name || "non défini"}</span>
+          <div className={`flex ${isMobile ? 'flex-col' : 'justify-between'}`}>
+            <span className={`font-semibold text-gray-700 ${isMobile ? 'text-sm mb-1' : ''}`}>Responsable du site :</span>
+            <span className={`text-gray-900 ${isMobile ? 'text-sm' : ''}`}>{permis.site_responsable?.name || "non défini"}</span>
           </div>
-          <div className="flex justify-between">
-            <span className="font-semibold text-gray-700">Entreprise :</span>
-            <span className="text-gray-900">{permis.entreprise?.name || "non défini"}</span>
+          <div className={`flex ${isMobile ? 'flex-col' : 'justify-between'}`}>
+            <span className={`font-semibold text-gray-700 ${isMobile ? 'text-sm mb-1' : ''}`}>Entreprise :</span>
+            <span className={`text-gray-900 ${isMobile ? 'text-sm' : ''}`}>{permis.entreprise?.name || "non défini"}</span>
           </div>
-          <div className="flex justify-between">
-            <span className="font-semibold text-gray-700">Lieu :</span>
-            <span className="text-gray-900">{permis.lieu?.name || "non défini"}</span>
+          <div className={`flex ${isMobile ? 'flex-col' : 'justify-between'}`}>
+            <span className={`font-semibold text-gray-700 ${isMobile ? 'text-sm mb-1' : ''}`}>Lieu :</span>
+            <span className={`text-gray-900 ${isMobile ? 'text-sm' : ''}`}>{permis.lieu?.name || "non défini"}</span>
           </div>
-          <div className="flex justify-between">
-            <span className="font-semibold text-gray-700">Opération à effectuer :</span>
-            <span className="text-gray-900">{permis.operation_description || "non défini"}</span>
+          <div className={`flex ${isMobile ? 'flex-col' : 'justify-between'}`}>
+            <span className={`font-semibold text-gray-700 ${isMobile ? 'text-sm mb-1' : ''}`}>Opération à effectuer :</span>
+            <span className={`text-gray-900 ${isMobile ? 'text-sm' : ''}`}>{permis.operation_description || "non défini"}</span>
           </div>
           
           {/* Display Timer Data if available */}
           {timerData && (
             <div className="mt-6 border-t pt-4">
-              <h2 className="text-xl font-bold mb-4">Données de Surveillance</h2>
+              <h2 className={`font-bold mb-4 ${isMobile ? 'text-lg' : 'text-xl'}`}>Données de Surveillance</h2>
               <div className="space-y-2">
                 {timerData.timer_15min && (
-                  <div className="flex justify-between">
-                    <span className="font-semibold text-gray-700">Surveillance 15min :</span>
-                    <span className="text-gray-900">{formatDateTime(timerData.timer_15min)}</span>
+                  <div className={`flex ${isMobile ? 'flex-col' : 'justify-between'}`}>
+                    <span className={`font-semibold text-gray-700 ${isMobile ? 'text-sm mb-1' : ''}`}>Surveillance 15min :</span>
+                    <span className={`text-gray-900 ${isMobile ? 'text-sm' : ''}`}>{formatDateTime(timerData.timer_15min)}</span>
                   </div>
                 )}
                 {timerData.timer_dejeuner_15min && (
-                  <div className="flex justify-between">
-                    <span className="font-semibold text-gray-700">Surveillance déjeuner 15min :</span>
-                    <span className="text-gray-900">{formatDateTime(timerData.timer_dejeuner_15min)}</span>
+                  <div className={`flex ${isMobile ? 'flex-col' : 'justify-between'}`}>
+                    <span className={`font-semibold text-gray-700 ${isMobile ? 'text-sm mb-1' : ''}`}>Surveillance déjeuner 15min :</span>
+                    <span className={`text-gray-900 ${isMobile ? 'text-sm' : ''}`}>{formatDateTime(timerData.timer_dejeuner_15min)}</span>
                   </div>
                 )}
                 {timerData.timer_2h && (
-                  <div className="flex justify-between">
-                    <span className="font-semibold text-gray-700">Surveillance 2h :</span>
-                    <span className="text-gray-900">{formatDateTime(timerData.timer_2h)}</span>
+                  <div className={`flex ${isMobile ? 'flex-col' : 'justify-between'}`}>
+                    <span className={`font-semibold text-gray-700 ${isMobile ? 'text-sm mb-1' : ''}`}>Surveillance 2h :</span>
+                    <span className={`text-gray-900 ${isMobile ? 'text-sm' : ''}`}>{formatDateTime(timerData.timer_2h)}</span>
                   </div>
                 )}
                 {timerData.fin_pause && (
-                  <div className="flex justify-between">
-                    <span className="font-semibold text-gray-700">Fin de pause :</span>
-                    <span className="text-gray-900">{formatDateTime(timerData.fin_pause)}</span>
+                  <div className={`flex ${isMobile ? 'flex-col' : 'justify-between'}`}>
+                    <span className={`font-semibold text-gray-700 ${isMobile ? 'text-sm mb-1' : ''}`}>Fin de pause :</span>
+                    <span className={`text-gray-900 ${isMobile ? 'text-sm' : ''}`}>{formatDateTime(timerData.fin_pause)}</span>
                   </div>
                 )}
                 {timerData.resultat_du_control && (
-                  <div className="flex justify-between">
-                    <span className="font-semibold text-gray-700">Résultat du contrôle :</span>
-                    <span className="text-gray-900">{timerData.resultat_du_control}</span>
+                  <div className={`flex ${isMobile ? 'flex-col' : 'justify-between'}`}>
+                    <span className={`font-semibold text-gray-700 ${isMobile ? 'text-sm mb-1' : ''}`}>Résultat du contrôle :</span>
+                    <span className={`text-gray-900 ${isMobile ? 'text-sm' : ''}`}>{timerData.resultat_du_control}</span>
                   </div>
                 )}
               </div>
@@ -1097,40 +1105,42 @@ const openPhotoModal = (photos) => {
           {/* Display Verification Forms if available */}
           {verificationForms && verificationForms.length > 0 && (
             <div className="mt-6 border-t pt-4">
-              <h2 className="text-xl font-bold mb-4">Formulaires de Vérification</h2>
+              <h2 className={`font-bold mb-4 ${isMobile ? 'text-lg' : 'text-xl'}`}>Formulaires de Vérification</h2>
               <div className="space-y-4">
                 {verificationForms.map((form, index) => (
-                  <div key={index} className="border p-4 rounded">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
+                  <div key={index} className={`border rounded ${isMobile ? 'p-3' : 'p-4'}`}>
+                    <div className={`grid gap-4 ${isMobile ? 'grid-cols-1' : 'grid-cols-2'}`}>
+                      <div className={isMobile ? 'text-sm' : ''}>
                         <span className="font-semibold">Type:</span> {form.type}
                       </div>
-                      <div>
+                      <div className={isMobile ? 'text-sm' : ''}>
                         <span className="font-semibold">Date:</span> {formatDateTime(form.date)}
                       </div>
-                      <div>
+                      <div className={isMobile ? 'text-sm' : ''}>
                         <span className="font-semibold">Intervenant:</span> {form.intervenant_person?.name || 'N/A'}
                       </div>
-                      <div>
+                      <div className={isMobile ? 'text-sm' : ''}>
                         <span className="font-semibold">Résultat:</span> {form.result}
                       </div>
                       {form.motif && (
-                        <div className="col-span-2">
+                        <div className={isMobile ? 'text-sm' : 'col-span-2'}>
                           <span className="font-semibold">Motif:</span> {form.motif}
                         </div>
                       )}
 
-                      {/* ✅ ADD THIS ENTIRE BLOCK */}
-    {form.verification_photos && form.verification_photos.length > 0 && (
-      <div className="col-span-2 mt-2">
-        <button
-          onClick={() => openPhotoModal(form.verification_photos)}
-          className="bg-indigo-600 text-white px-3 py-1 text-sm rounded hover:bg-indigo-500"
-        >
-          Voir les {form.verification_photos.length} Photo(s)
-        </button>
-      </div>
-    )}
+                      {/* Photo button */}
+                      {form.verification_photos && form.verification_photos.length > 0 && (
+                        <div className={isMobile ? 'mt-2' : 'col-span-2 mt-2'}>
+                          <button
+                            onClick={() => openPhotoModal(form.verification_photos)}
+                            className={`bg-indigo-600 text-white px-3 py-1 text-sm rounded hover:bg-indigo-500 ${
+                              isMobile ? 'w-full h-10' : ''
+                            }`}
+                          >
+                            Voir les {form.verification_photos.length} Photo(s)
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -1138,20 +1148,28 @@ const openPhotoModal = (photos) => {
             </div>
           )}
         </div>
-        <div className="flex justify-between mt-6">
+        <div className={`flex mt-6 gap-3 ${
+          isMobile ? 'flex-col' : 'justify-between'
+        }`}>
           <button
             type="button"
             onClick={() => navigate(-1)}
-            className="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-500"
+            className={`bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-500 transition ${
+              isMobile ? 'w-full h-12 order-3' : ''
+            }`}
           >
             Retour à la liste
           </button>
-          <div className="flex gap-2">
+          <div className={`flex gap-2 ${
+            isMobile ? 'flex-col w-full' : 'flex-row'
+          }`}>
             <button
               type="button"
               onClick={generatePDF}
               disabled={generatingPdf}
-              className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-500 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              className={`bg-green-600 text-white px-4 py-2 rounded hover:bg-green-500 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 justify-center transition ${
+                isMobile ? 'w-full h-12 order-1' : ''
+              }`}
             >
               {generatingPdf ? (
                 <>
@@ -1166,7 +1184,9 @@ const openPhotoModal = (photos) => {
               type="button"
               onClick={() => navigate(`/tes/${id}`)}
               disabled={verification?.form_2h !== null && verification?.form_2h !== undefined}
-              className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-500 disabled:opacity-50 disabled:hover:bg-blue-600"
+              className={`bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-500 disabled:opacity-50 disabled:hover:bg-blue-600 transition ${
+                isMobile ? 'w-full h-12 order-2' : ''
+              }`}
             >
               Verification
             </button>
@@ -1174,7 +1194,7 @@ const openPhotoModal = (photos) => {
         </div>
       </div>
 
-    {/* ✅ ADD THIS LINE */}
+    {/* Photo Modal */}
     {isModalOpen && <PhotoModal photos={selectedPhotos} onClose={() => setIsModalOpen(false)} />}
     </div>
   );

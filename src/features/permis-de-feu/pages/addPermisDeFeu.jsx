@@ -4,10 +4,12 @@ import { supabase } from "@/features/auth/utils/supabase-client";
 import { useNavigate, useParams } from "react-router-dom";
 import SignaturePad from "signature_pad";
 import { useAuth } from "@/features/auth/utils/auth-context";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 const AddPermisFeu = () => {
   const { id } = useParams(); // Get permit ID from URL for editing
   const isEditing = Boolean(id);
+  const isMobile = useIsMobile();
   
   // Refs for Signature Canvases
   const sigPadSurveillance = useRef(null);
@@ -260,20 +262,29 @@ const AddPermisFeu = () => {
     const setupSignaturePad = (canvasRef, signaturePadRef) => {
       if (canvasRef.current) {
         const canvas = canvasRef.current;
-        const ratio = Math.max(window.devicePixelRatio || 1, 1);
-        canvas.width = canvas.offsetWidth * ratio;
-        canvas.height = canvas.offsetHeight * ratio;
-        canvas.getContext("2d").scale(ratio, ratio);
-        
+        const container = canvas.parentElement;
+        const containerWidth = container.offsetWidth;
+        const canvasHeight = isMobile ? 120 : 150;
+
+        // Set canvas dimensions based on container
+        canvas.width = containerWidth - 4; // Account for border
+        canvas.height = canvasHeight;
+
+        // Set CSS dimensions to match
+        canvas.style.width = `${containerWidth - 4}px`;
+        canvas.style.height = `${canvasHeight}px`;
+
         // Clear any existing signature pad
         if (signaturePadRef.current) {
           signaturePadRef.current.off();
         }
-        
+
         signaturePadRef.current = new SignaturePad(canvas, {
-          minWidth: 1,
-          maxWidth: 3,
-          penColor: "black",
+          backgroundColor: 'rgba(255,255,255,0)',
+          penColor: 'rgb(0, 0, 0)',
+          velocityFilterWeight: 0.7,
+          minWidth: isMobile ? 1 : 0.5,
+          maxWidth: isMobile ? 3 : 2.5,
         });
       }
     };
@@ -284,8 +295,21 @@ const AddPermisFeu = () => {
       setupSignaturePad(sigPadSite, signaturePadSite);
     }, 100);
 
-    return () => clearTimeout(timer);
-  }, [loadedPermisData]); // Re-setup when permit data is loaded
+    // Handle window resize
+    const handleResize = () => {
+      if (signaturePadSurveillance.current && signaturePadSite.current) {
+        setupSignaturePad(sigPadSurveillance, signaturePadSurveillance);
+        setupSignaturePad(sigPadSite, signaturePadSite);
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('resize', handleResize);
+    };
+  }, [loadedPermisData, isMobile]); // Re-setup when permit data is loaded or mobile state changes
 
   // Show database/network errors as alerts (not validation errors)
   useEffect(() => {
@@ -550,6 +574,10 @@ const handleTravauxPersonChange = async (option) => {
       signaturePadSurveillance.current.clear();
     }
     setRespSurvSignature("");
+    // Add haptic feedback on mobile
+    if (isMobile && navigator.vibrate) {
+      navigator.vibrate(50);
+    }
   };
 
   const clearSignatureSite = () => {
@@ -557,6 +585,10 @@ const handleTravauxPersonChange = async (option) => {
       signaturePadSite.current.clear();
     }
     setRespSiteSignature("");
+    // Add haptic feedback on mobile
+    if (isMobile && navigator.vibrate) {
+      navigator.vibrate(50);
+    }
   };
 
   const captureSurveillanceSignature = () => {
@@ -967,32 +999,48 @@ const handleTravauxPersonChange = async (option) => {
   // Render the Form
   // --------------------------
   return (
-    <div className="min-h-screen bg-gray-100 p-4 overflow-auto pt-20">
-      <form onSubmit={handleSubmit} noValidate className="max-w-6xl mx-auto bg-white p-8 rounded shadow">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-3xl font-bold text-center">
-            {isEditing ? "Modifier Permis de Feu" : "Permis de Feu"}
+    <div className="min-h-screen bg-gray-50 sm:bg-gray-100 overflow-auto pt-20">
+      {/* Mobile Header */}
+      <div className="sm:hidden bg-white border-b border-gray-200 px-4 py-3 sticky top-16 z-40">
+        <div className="flex items-center justify-between">
+          <h1 className="text-lg font-semibold text-gray-900">
+            {isEditing ? "Modifier Permis" : "Nouveau Permis"}
           </h1>
           {isEditing && (
-            <div className="bg-orange-100 border border-orange-400 text-orange-700 px-3 py-2 rounded">
-              Mode édition
-            </div>
+            <span className="bg-orange-100 text-orange-700 px-2 py-1 rounded text-xs font-medium">
+              Édition
+            </span>
           )}
         </div>
+      </div>
+
+      <div className="p-4 sm:p-6 md:p-8 pt-4 sm:pt-20">
+        <form onSubmit={handleSubmit} noValidate className="max-w-6xl mx-auto bg-white p-4 sm:p-8 rounded-none sm:rounded-lg shadow-none sm:shadow-md">
+          {/* Desktop Header */}
+          <div className="hidden sm:flex justify-between items-center mb-6">
+            <h1 className="text-2xl md:text-3xl font-bold">
+              {isEditing ? "Modifier Permis de Feu" : "Permis de Feu"}
+            </h1>
+            {isEditing && (
+              <div className="bg-orange-100 border border-orange-400 text-orange-700 px-3 py-2 rounded">
+                Mode édition
+              </div>
+            )}
+          </div>
 
         {/* Horaires */}
-        <section ref={horairesRef} className="mb-8">
-          <h2 className="text-xl font-semibold mb-4">Horaires</h2>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
+        <section ref={horairesRef} className="mb-6 sm:mb-8">
+          <h2 className="text-lg sm:text-xl font-semibold mb-4 text-gray-900">Horaires</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+            <div className="space-y-2">
               <label className="block text-sm font-medium text-gray-700">
                 Date et Heure de début <span className="text-red-500">*</span>
               </label>
               <input
                 type="datetime-local"
-                className={`mt-1 block w-full border rounded p-2 ${
-                  fieldErrors.heureDebut ? 'border-red-500 bg-red-50' : 'border-gray-300'
-                }`}
+                className={`w-full h-12 sm:h-10 px-4 sm:px-3 py-2 text-base sm:text-sm border rounded-md transition-colors ${
+                  fieldErrors.heureDebut ? 'border-red-500 bg-red-50 focus:border-red-500' : 'border-gray-300 focus:border-blue-500'
+                } focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-20`}
                 value={heureDebut}
                 onChange={(e) => {
                   setHeureDebut(e.target.value);
@@ -1000,18 +1048,18 @@ const handleTravauxPersonChange = async (option) => {
                 }}
               />
               {fieldErrors.heureDebut && (
-                <p className="mt-1 text-sm text-red-600">{fieldErrors.heureDebut}</p>
+                <p className="text-sm text-red-600">{fieldErrors.heureDebut}</p>
               )}
             </div>
-            <div>
+            <div className="space-y-2">
               <label className="block text-sm font-medium text-gray-700">
                 Date et Heure de fin <span className="text-red-500">*</span>
               </label>
               <input
                 type="datetime-local"
-                className={`mt-1 block w-full border rounded p-2 ${
-                  fieldErrors.heureFin ? 'border-red-500 bg-red-50' : 'border-gray-300'
-                }`}
+                className={`w-full h-12 sm:h-10 px-4 sm:px-3 py-2 text-base sm:text-sm border rounded-md transition-colors ${
+                  fieldErrors.heureFin ? 'border-red-500 bg-red-50 focus:border-red-500' : 'border-gray-300 focus:border-blue-500'
+                } focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-20`}
                 value={heureFin}
                 onChange={(e) => {
                   setHeureFin(e.target.value);
@@ -1019,23 +1067,23 @@ const handleTravauxPersonChange = async (option) => {
                 }}
               />
               {fieldErrors.heureFin && (
-                <p className="mt-1 text-sm text-red-600">{fieldErrors.heureFin}</p>
+                <p className="text-sm text-red-600">{fieldErrors.heureFin}</p>
               )}
             </div>
-            <div>
+            <div className="space-y-2">
               <label className="block text-sm font-medium text-gray-700">Début pause déjeuner</label>
               <input
                 type="datetime-local"
-                className="mt-1 block w-full border border-gray-300 rounded p-2"
+                className="w-full h-12 sm:h-10 px-4 sm:px-3 py-2 text-base sm:text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-20 focus:border-blue-500 transition-colors"
                 value={dejeunerDebut}
                 onChange={(e) => setDejeunerDebut(e.target.value)}
               />
             </div>
-            <div>
+            <div className="space-y-2">
               <label className="block text-sm font-medium text-gray-700">Fin pause déjeuner</label>
               <input
                 type="datetime-local"
-                className="mt-1 block w-full border border-gray-300 rounded p-2"
+                className="w-full h-12 sm:h-10 px-4 sm:px-3 py-2 text-base sm:text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-20 focus:border-blue-500 transition-colors"
                 value={dejeunerFin}
                 onChange={(e) => setDejeunerFin(e.target.value)}
               />
@@ -1106,25 +1154,33 @@ const handleTravauxPersonChange = async (option) => {
               <p className="mt-1 text-sm text-red-600">{fieldErrors.selectedSurveillance}</p>
             )}
           </div>
-          <div className="mb-4">
+          <div className="mb-4 space-y-2">
             <label className="block text-sm font-medium text-gray-700">
               Signature du responsable <span className="text-red-500">*</span>
             </label>
-            <div className={`mt-1 border rounded mx-auto ${
-              fieldErrors.signatureSurveillance ? 'border-red-500' : 'border-gray-300'
-            }`} style={{ width: "500px", height: "150px" }}>
-              <canvas ref={sigPadSurveillance} className="w-full h-full" />
+            <div className={`border-2 border-dashed rounded-lg p-2 bg-gray-50 touch-manipulation ${
+              fieldErrors.signatureSurveillance ? 'border-red-300 bg-red-50' : 'border-gray-300'
+            }`}>
+              <canvas
+                ref={sigPadSurveillance}
+                className="w-full border border-gray-200 rounded bg-white touch-none block"
+                style={{
+                  touchAction: 'none',
+                  maxWidth: '100%',
+                  height: 'auto'
+                }}
+              />
             </div>
             <button
               type="button"
               onClick={clearSignatureSurveillance}
-              className="mt-2 text-blue-600 text-sm"
+              className="w-full sm:w-auto px-4 py-2 text-sm text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 rounded-md transition-colors duration-200 font-medium"
               disabled={isSubmitting || isSavingDraft}
             >
               Effacer la signature
             </button>
             {fieldErrors.signatureSurveillance && (
-              <p className="mt-1 text-sm text-red-600">{fieldErrors.signatureSurveillance}</p>
+              <p className="text-sm text-red-600">{fieldErrors.signatureSurveillance}</p>
             )}
           </div>
         </section>
@@ -1228,25 +1284,33 @@ styles={{
 
 
 
-          <div className="mb-4">
+          <div className="mb-4 space-y-2">
             <label className="block text-sm font-medium text-gray-700">
               Signature <span className="text-red-500">*</span>
             </label>
-            <div className={`mt-1 border rounded mx-auto ${
-              fieldErrors.signatureSite ? 'border-red-500' : 'border-gray-300'
-            }`} style={{ width: "500px", height: "150px" }}>
-              <canvas ref={sigPadSite} className="w-full h-full" />
+            <div className={`border-2 border-dashed rounded-lg p-2 bg-gray-50 touch-manipulation ${
+              fieldErrors.signatureSite ? 'border-red-300 bg-red-50' : 'border-gray-300'
+            }`}>
+              <canvas
+                ref={sigPadSite}
+                className="w-full border border-gray-200 rounded bg-white touch-none block"
+                style={{
+                  touchAction: 'none',
+                  maxWidth: '100%',
+                  height: 'auto'
+                }}
+              />
             </div>
             <button
               type="button"
               onClick={clearSignatureSite}
-              className="mt-2 text-blue-600 text-sm"
+              className="w-full sm:w-auto px-4 py-2 text-sm text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 rounded-md transition-colors duration-200 font-medium"
               disabled={isSubmitting || isSavingDraft}
             >
               Effacer la signature
             </button>
             {fieldErrors.signatureSite && (
-              <p className="mt-1 text-sm text-red-600">{fieldErrors.signatureSite}</p>
+              <p className="text-sm text-red-600">{fieldErrors.signatureSite}</p>
             )}
           </div>
         </section>
@@ -1439,43 +1503,46 @@ styles={{
         </section>
 
         {/* Submit Buttons */}
-        <div className="text-center flex gap-4 justify-center">
-          {/* Save as Draft Button - Only show if not editing or if editing a planified permit */}
-          {(!isEditing || (isEditing && loadedPermisData?.status === "planified")) && (
-            <button 
-              type="button"
-              onClick={handleSaveDraft}
-              className="px-8 py-3 bg-gray-600 text-white rounded-md font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+        <div className="mt-8 pt-6 border-t border-gray-200">
+          <div className="flex flex-col-reverse sm:flex-row gap-3 sm:gap-4 sm:justify-center">
+            {/* Save as Draft Button - Only show if not editing or if editing a planified permit */}
+            {(!isEditing || (isEditing && loadedPermisData?.status === "planified")) && (
+              <button
+                type="button"
+                onClick={handleSaveDraft}
+                className="w-full sm:w-auto px-6 sm:px-8 py-3 h-12 sm:h-auto bg-gray-600 hover:bg-gray-700 text-white rounded-md font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-colors duration-200"
+                disabled={isSubmitting || isSavingDraft}
+              >
+                {isSavingDraft ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                    <span>Sauvegarde...</span>
+                  </>
+                ) : (
+                  <span>Sauvegarder comme planifié</span>
+                )}
+              </button>
+            )}
+
+            {/* Submit Button */}
+            <button
+              type="submit"
+              className="w-full sm:w-auto px-6 sm:px-8 py-3 h-12 sm:h-auto bg-blue-600 hover:bg-blue-700 text-white rounded-md font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-colors duration-200"
               disabled={isSubmitting || isSavingDraft}
             >
-              {isSavingDraft ? (
+              {isSubmitting ? (
                 <>
                   <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-                  Sauvegarde...
+                  <span>{isEditing ? 'Mise à jour...' : 'Enregistrement...'}</span>
                 </>
               ) : (
-                'Sauvegarder comme planifié'
+                <span>{isEditing ? 'Mettre à jour le Permis' : 'Ajouter Permis de Feu'}</span>
               )}
             </button>
-          )}
-          
-          {/* Submit Button */}
-          <button 
-            type="submit" 
-            className="px-8 py-3 bg-indigo-600 text-white rounded-md font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-            disabled={isSubmitting || isSavingDraft}
-          >
-            {isSubmitting ? (
-              <>
-                <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-                {isEditing ? 'Mise à jour...' : 'Enregistrement...'}
-              </>
-            ) : (
-              isEditing ? 'Mettre à jour le Permis' : 'Ajouter Permis de Feu'
-            )}
-          </button>
+          </div>
         </div>
-      </form>
+        </form>
+      </div>
     </div>
   );
 };

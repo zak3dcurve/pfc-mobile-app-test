@@ -7,6 +7,7 @@ import { LoadingSpinner } from "@/components/loadingspinner";
 import { Badge } from "@/components/ui/badge";
 import notificationSound from "@/assets/notification.mp3";
 import StatutTimer from "./features/permis-de-feu/components/StatutTimer";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 const ConsignationHome = () => {
   const [consignations, setConsignations] = useState([]);
@@ -16,6 +17,7 @@ const ConsignationHome = () => {
   const navigate = useNavigate();
   const notificationAudio = useRef(new Audio(notificationSound));
   const allowedStatuses = ["pending", "confirmed", "deconsigné"];
+  const isMobile = useIsMobile();
 
   // Fetch single consignation (for realtime)
   const fetchSingleConsignation = async (id) => {
@@ -446,8 +448,10 @@ const ConsignationHome = () => {
     <>
       <Navbar />
 
-      <div className="bg-gray-200 flex items-center justify-center min-h-screen px-4 sm:px-6 lg:px-8">
-        <div className="flex flex-col gap-6 w-full max-w-7xl mx-auto mt-20 mb-10">
+      <div className="bg-gray-200 flex items-center justify-center min-h-screen px-2 sm:px-4 lg:px-8 pt-20">
+        <div className={`flex flex-col gap-6 w-full max-w-7xl mx-auto mb-10 ${
+          isMobile ? 'mt-2' : 'mt-4'
+        }`}>
           {/* Consignations */}
           <div className="bg-white rounded-lg shadow-lg p-6">
             <div className="flex flex-col sm:flex-row justify-between items-center mb-6">
@@ -486,34 +490,49 @@ const ConsignationHome = () => {
               data={consignations}
               customStyles={customStyles}
               fixedHeader
-              fixedHeaderScrollHeight="400px"
+              fixedHeaderScrollHeight={isMobile ? "40vh" : "400px"}
               conditionalRowStyles={conditionalRowStyles}
               onRowClicked={handleRowClickConsignations}
               highlightOnHover
               pointerOnHover
+              responsive={true}
+              dense={isMobile}
+              pagination={true}
+              paginationPerPage={isMobile ? 8 : 15}
+              paginationRowsPerPageOptions={isMobile ? [5, 8, 10] : [10, 15, 20, 30]}
               noDataComponent={<div className="p-4 text-center">Aucun enregistrement à afficher</div>}
             />
           </div>
 
           {/* Enhanced Permis de Feu */}
-          <div className="bg-white rounded-lg shadow-lg p-6">
+          <div className={`bg-white rounded-lg shadow-lg ${
+            isMobile ? 'p-4' : 'p-6'
+          }`}>
             <div className="flex flex-col sm:flex-row justify-between items-center mb-6">
-              <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-4 sm:mb-0">
+              <h1 className={`font-bold text-gray-800 mb-4 sm:mb-0 ${
+                isMobile ? 'text-xl' : 'text-2xl sm:text-3xl'
+              }`}>
                 Permis de Feu
               </h1>
-              <div className="flex gap-2">
-                <Link to="/multiconsarch">
+              <div className={`flex gap-2 ${
+                isMobile ? 'flex-col w-full' : 'flex-row'
+              }`}>
+                <Link to="/multiconsarch" className={isMobile ? 'w-full' : ''}>
                   <button
                     type="button"
-                    className="rounded-md bg-gray-700 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-gray-500 active:bg-gray-800 transition-colors"
+                    className={`rounded-md bg-gray-700 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-gray-500 active:bg-gray-800 transition-colors ${
+                      isMobile ? 'w-full h-12' : ''
+                    }`}
                   >
                     Archives
                   </button>
                 </Link>
-                <Link to="/permisdefeu">
+                <Link to="/permisdefeu" className={isMobile ? 'w-full' : ''}>
                   <button
                     type="button"
-                    className="rounded-md bg-green-700 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-green-500 active:bg-green-800 transition-colors"
+                    className={`rounded-md bg-green-700 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-green-500 active:bg-green-800 transition-colors ${
+                      isMobile ? 'w-full h-12' : ''
+                    }`}
                   >
                     Ajouter un permis de feu
                   </button>
@@ -525,11 +544,16 @@ const ConsignationHome = () => {
               data={rowsWithTimers} // Use the enhanced data with timers
               customStyles={customStyles}
               fixedHeader
-              fixedHeaderScrollHeight="400px"
+              fixedHeaderScrollHeight={isMobile ? "40vh" : "400px"}
               // conditionalRowStyles={permisConditionalRowStyles} // Use critical row highlighting
               onRowClicked={handleRowClickPermis}
               highlightOnHover
               pointerOnHover
+              responsive={true}
+              dense={isMobile}
+              pagination={true}
+              paginationPerPage={isMobile ? 8 : 15}
+              paginationRowsPerPageOptions={isMobile ? [5, 8, 10] : [10, 15, 20, 30]}
               noDataComponent={<div className="p-4 text-center">Aucun enregistrement à afficher</div>}
             />
           </div>

@@ -6,6 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { useNavigate } from "react-router-dom";
 import jsPDF from "jspdf";
 import { useAuth } from "@/features/auth/utils/auth-context";
+import { useIsMobile } from "@/hooks/use-mobile";
+import Navbar from "@/components/app-navbar";
 
 const ConsignationDetails = () => {
   const { id } = useParams();
@@ -18,6 +20,7 @@ const ConsignationDetails = () => {
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const { site } = useAuth();
+  const isMobile = useIsMobile();
 
   const [createdAt, setCreatedAt] = useState("");
 
@@ -1187,9 +1190,14 @@ doc.text("• Signature de l'exécuteur :", marginX + 5, ln2);
 
   return (
     <>
-      <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
-        <div className="w-full max-w-lg bg-white rounded-xl shadow-lg p-8">
-          <h1 className="text-3xl font-bold text-center mb-6">Détails de la consignation</h1>
+      <Navbar />
+      <div className="min-h-screen flex items-center justify-center bg-gray-100 p-2 sm:p-4 pt-20">
+        <div className={`w-full bg-white rounded-xl shadow-lg ${
+          isMobile ? 'max-w-full p-4 mt-4' : 'max-w-lg p-8 mt-8'
+        }`}>
+          <h1 className={`font-bold text-center mb-6 ${
+            isMobile ? 'text-xl' : 'text-3xl'
+          }`}>Détails de la consignation</h1>
 
           <div className="space-y-4">
             <div className="flex justify-between">
@@ -1251,10 +1259,14 @@ doc.text("• Signature de l'exécuteur :", marginX + 5, ln2);
             )}
           </div>
 
-          <div className="flex justify-between mt-5">
+          <div className={`flex mt-5 gap-3 ${
+            isMobile ? 'flex-col' : 'justify-between'
+          }`}>
             <button
               type="button"
-              className="inline-block bg-indigo-600 text-white px-6 py-2 rounded hover:bg-indigo-500 transition active:bg-indigo-800"
+              className={`bg-indigo-600 text-white px-6 py-2 rounded hover:bg-indigo-500 transition active:bg-indigo-800 ${
+                isMobile ? 'w-full h-12 order-2' : 'inline-block'
+              }`}
               onClick={() => navigate(-1)}
             >
               Retour à la liste
@@ -1263,16 +1275,20 @@ doc.text("• Signature de l'exécuteur :", marginX + 5, ln2);
             {consignation.status === "pending" ? (
               <button
                 type="button"
-                className="inline-block bg-green-600 text-white px-6 py-2 rounded hover:bg-green-500 transition active:bg-green-800"
+                className={`bg-green-600 text-white px-6 py-2 rounded hover:bg-green-500 transition active:bg-green-800 ${
+                  isMobile ? 'w-full h-12 order-1' : 'inline-block'
+                }`}
                 onClick={() => handleConfirmation(consignation.id, consignation.status)}
               >
                 Confirmer
               </button>
             ) : consignation.status === "confirmed" ? (
-              <Link to={`/deconsignation/${id}`}>
+              <Link to={`/deconsignation/${id}`} className={isMobile ? 'w-full order-1' : ''}>
                 <button
                   type="button"
-                  className="inline-block bg-red-600 text-white px-6 py-2 rounded hover:bg-red-500 transition active:bg-red-800"
+                  className={`bg-red-600 text-white px-6 py-2 rounded hover:bg-red-500 transition active:bg-red-800 ${
+                    isMobile ? 'w-full h-12' : 'inline-block'
+                  }`}
                 >
                   Déconsigner
                 </button>
@@ -1280,7 +1296,9 @@ doc.text("• Signature de l'exécuteur :", marginX + 5, ln2);
             ) : consignation.status === "deconsigné" ? (
               <button
                 type="button"
-                className="inline-block bg-fuchsia-600 text-white px-6 py-2 rounded hover:bg-fuchsia-500 transition active:bg-fuchsia-800"
+                className={`bg-fuchsia-600 text-white px-6 py-2 rounded hover:bg-fuchsia-500 transition active:bg-fuchsia-800 ${
+                  isMobile ? 'w-full h-12 order-1' : 'inline-block'
+                }`}
                 onClick={() =>
                   handleConfirmationDeconsignation(consignation.id, consignation.status)
                 }
@@ -1290,7 +1308,9 @@ doc.text("• Signature de l'exécuteur :", marginX + 5, ln2);
             ) : consignation.status === "planified" ? (
               <button
                 type="button"
-                className="inline-block bg-sky-600 text-white px-6 py-2 rounded hover:bg-sky-500 transition active:bg-blue-800"
+                className={`bg-sky-600 text-white px-6 py-2 rounded hover:bg-sky-500 transition active:bg-blue-800 ${
+                  isMobile ? 'w-full h-12 order-1' : 'inline-block'
+                }`}
                 onClick={() =>
                   handleContinuationConsignation(consignation.id, consignation.status)
                 }
@@ -1300,7 +1320,9 @@ doc.text("• Signature de l'exécuteur :", marginX + 5, ln2);
             ) : (
               <button
                 type="button"
-                className="inline-block bg-gray-600 text-white px-6 py-2 rounded hover:bg-gray-500 transition active:bg-gray-800"
+                className={`bg-gray-600 text-white px-6 py-2 rounded hover:bg-gray-500 transition active:bg-gray-800 ${
+                  isMobile ? 'w-full h-12 order-1' : 'inline-block'
+                }`}
                 disabled
               >
                 Archivée
@@ -1308,19 +1330,23 @@ doc.text("• Signature de l'exécuteur :", marginX + 5, ln2);
             )}
           </div>
 
-          <div className="mt-5">
+          <div className={`mt-5 flex gap-3 ${
+            isMobile ? 'flex-col' : 'flex-row'
+          }`}>
             <button
               type="button"
-              className="inline-block bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-500 transition active:bg-blue-800"
+              className={`bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-500 transition active:bg-blue-800 ${
+                isMobile ? 'w-full h-12' : 'inline-block'
+              }`}
               onClick={handleGenerateExactCustomPDF}
             >
               Imprimer le PDF final
             </button>
-          </div>
-          <div className="mt-5">
             <button
               type="button"
-              className="inline-block bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-500 transition active:bg-blue-800"
+              className={`bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-500 transition active:bg-blue-800 ${
+                isMobile ? 'w-full h-12' : 'inline-block'
+              }`}
               onClick={handleMultiConsignation}
             >
               Ajoute une consignation multiple
