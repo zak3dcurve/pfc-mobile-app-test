@@ -199,28 +199,36 @@ const isRowCritical = (row) => {
       {/* Card container */}
       <div className="bg-white rounded-lg shadow-lg w-full max-w-7xl mx-auto p-6">
         <div className="flex flex-col sm:flex-row justify-between items-center mb-6">
-  <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-4 sm:mb-0">
-    Permis de Feu
-  </h1>
-  <div className="flex gap-2">
-    <Link to="/multiconsarch">
-      <button
-        type="button"
-        className="rounded-md bg-gray-700 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-gray-500 active:bg-gray-800 transition-colors"
-      >
-        Archives
-      </button>
-    </Link>
-    <Link to="/permisdefeu">
-      <button
-        type="button"
-        className="rounded-md bg-green-700 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-green-500 active:bg-green-800 transition-colors"
-      >
-        Ajouter un permis de feu
-      </button>
-    </Link>
-  </div>
-</div>
+          <h1 className={`font-bold text-gray-800 mb-4 sm:mb-0 ${
+            isMobile ? 'text-xl' : 'text-2xl sm:text-3xl'
+          }`}>
+            Permis de Feu
+          </h1>
+          <div className={`flex gap-2 ${
+            isMobile ? 'flex-col w-full' : 'flex-row'
+          }`}>
+            <Link to="/multiconsarch" className={isMobile ? 'w-full' : ''}>
+              <button
+                type="button"
+                className={`rounded-md bg-gray-700 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-gray-500 active:bg-gray-800 transition-colors ${
+                  isMobile ? 'w-full h-12' : ''
+                }`}
+              >
+                Archives
+              </button>
+            </Link>
+            <Link to="/permisdefeu" className={isMobile ? 'w-full' : ''}>
+              <button
+                type="button"
+                className={`rounded-md bg-green-700 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-green-500 active:bg-green-800 transition-colors ${
+                  isMobile ? 'w-full h-12' : ''
+                }`}
+              >
+                Ajouter un permis de feu
+              </button>
+            </Link>
+          </div>
+        </div>
         <DataTable
           columns={columns}
           data={rowsWithTimers} // ✅ USE THE DYNAMIC, UPDATED DATA
