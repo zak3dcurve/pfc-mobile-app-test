@@ -1,11 +1,8 @@
 import React, { useState, useEffect } from "react";
-
 import { useParams, useNavigate } from "react-router-dom";
-
 import { supabase } from "@/features/auth/utils/supabase-client";
-
 import { useAuth } from "@/features/auth/utils/auth-context";
-
+import { useIsMobile } from "@/hooks/use-mobile";
 import { PhotoUploader } from "../components/PhotoUploader";
 
 
@@ -56,7 +53,7 @@ import { PhotoUploader } from "../components/PhotoUploader";
 
         onChange={e => setDate(e.target.value)}
 
-        className="border p-2 rounded"
+        className="w-full border border-gray-300 rounded-md px-3 py-2 text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors min-h-[44px] sm:min-h-[40px]" style={{ fontSize: '16px' }}
 
         required
 
@@ -66,7 +63,7 @@ import { PhotoUploader } from "../components/PhotoUploader";
 
       {/* Equipement */}
 
-      <div className="border p-2 rounded bg-gray-50">
+      <div className="w-full border border-gray-300 rounded-md px-3 py-2 text-gray-800 bg-gray-50 min-h-[44px] sm:min-h-[40px] flex items-center">
 
       <strong>Équipement: </strong>
 
@@ -84,7 +81,7 @@ import { PhotoUploader } from "../components/PhotoUploader";
 
         onChange={e => setIntervenant(e.target.value)}
 
-        className="border p-2 rounded"
+        className="w-full border border-gray-300 rounded-md px-3 py-2 text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors min-h-[44px] sm:min-h-[40px]" style={{ fontSize: '16px' }}
 
         required
 
@@ -110,7 +107,7 @@ import { PhotoUploader } from "../components/PhotoUploader";
 
         onChange={e => setResult(e.target.value)}
 
-        className="border p-2 rounded"
+        className="w-full border border-gray-300 rounded-md px-3 py-2 text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors min-h-[44px] sm:min-h-[40px]" style={{ fontSize: '16px' }}
 
         required
 
@@ -138,7 +135,7 @@ import { PhotoUploader } from "../components/PhotoUploader";
 
         placeholder="Décrivez le motif de l'anomalie..."
 
-        className="border p-2 rounded min-h-[80px]"
+        className="w-full border border-gray-300 rounded-md px-3 py-2 text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors min-h-[100px] resize-vertical" style={{ fontSize: '16px' }}
 
         required
 
@@ -152,7 +149,7 @@ import { PhotoUploader } from "../components/PhotoUploader";
 
       <PhotoUploader photos={photos} setPhotos={setPhotos} />
 
-      <button type="submit" className="bg-green-600 text-white px-4 py-2 rounded">
+      <button type="submit" className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold px-6 py-3 rounded-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 min-h-[44px]">
 
         Soumettre le Rapport
 
