@@ -66,7 +66,7 @@ export default function Navbar() {
                     >
                       <img
                         className="h-10 w-auto object-contain rounded-md bg-white p-1"
-                        src="suez_logo.png"
+                        src="/suez_logo.png"
                         alt="Logo SUEZ"
                         onError={(e) => {
                           e.target.style.display = 'none';
