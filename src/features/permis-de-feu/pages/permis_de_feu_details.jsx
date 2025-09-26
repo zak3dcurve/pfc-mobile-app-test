@@ -3,6 +3,8 @@ import { useParams, useNavigate, Link } from "react-router-dom";
 import { supabase } from "@/features/auth/utils/supabase-client";
 import { LoadingSpinner } from "@/components/loadingspinner";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/features/auth/utils/auth-context";
 import { set } from "zod";
 import jsPDF from 'jspdf';
@@ -12,67 +14,99 @@ import { Capacitor } from '@capacitor/core';
 import { Filesystem, Directory } from '@capacitor/filesystem';
 import { Share } from '@capacitor/share';
 import { FileOpener } from '@capacitor-community/file-opener';
+import {
+  CalendarIcon,
+  ClockIcon,
+  UserIcon,
+  BuildingOfficeIcon,
+  MapPinIcon,
+  WrenchScrewdriverIcon,
+  EyeIcon,
+  PhotoIcon,
+  DocumentArrowDownIcon,
+  ArrowLeftIcon,
+  CheckCircleIcon,
+  ExclamationTriangleIcon,
+  InformationCircleIcon
+} from "@heroicons/react/24/outline";
 
 
 // ✅ ADD THIS ENTIRE COMPONENT TO YOUR FILE
 
 const PhotoModal = ({ photos, onClose }) => {
   return (
-    // Transparent backdrop with blur effect
-    <div 
-      className="fixed inset-0 backdrop-blur-sm bg-black/20 flex justify-center items-center z-50 p-2 sm:p-4" 
-      onClick={onClose} // Close modal if you click the background
+    <div
+      className="fixed inset-0 backdrop-blur-md bg-black/30 flex justify-center items-center z-50 p-4"
+      onClick={onClose}
     >
-      {/* The modal content container - responsive */}
-      <div 
-        className="bg-white rounded-lg w-full max-w-6xl max-h-[95vh] flex flex-col shadow-2xl"
-        onClick={e => e.stopPropagation()} // Prevents modal from closing when clicking inside it
+      <div
+        className="bg-white rounded-2xl w-full max-w-6xl max-h-[90vh] flex flex-col shadow-2xl border-0 overflow-hidden"
+        onClick={e => e.stopPropagation()}
       >
-        {/* Header - sticky */}
-        <div className="flex justify-between items-center border-b p-3 sm:p-4 bg-white rounded-t-lg">
-          <h2 className="text-lg sm:text-xl font-bold text-gray-800">Photos de Vérification</h2>
-          <button 
-            onClick={onClose} 
-            className="text-2xl sm:text-3xl font-bold text-gray-500 hover:text-gray-700 transition-colors w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100"
+        {/* Header */}
+        <div className="flex justify-between items-center p-6 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-gray-100">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center justify-center w-10 h-10 bg-blue-100 rounded-full">
+              <PhotoIcon className="h-5 w-5 text-blue-600" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-gray-900">Photos de Vérification</h2>
+              <p className="text-sm text-gray-600">{photos.length} photo{photos.length > 1 ? 's' : ''}</p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="flex items-center justify-center w-10 h-10 text-gray-400 hover:text-gray-600 hover:bg-white rounded-full transition-all duration-200 shadow-sm hover:shadow-md"
           >
-            &times;
+            <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
           </button>
         </div>
-        
-        {/* Scrollable content */}
-        <div className="flex-1 overflow-y-auto p-3 sm:p-4">
-          {/* The grid of photos - responsive */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
-            {photos.map(photo => (
-              <div key={photo.id} className="rounded-lg overflow-hidden shadow-md bg-gray-50">
-                <img 
-                  src={photo.photo_url} 
-                  alt="Verification" 
-                  className="w-full h-48 sm:h-56 lg:h-64 object-cover hover:scale-105 transition-transform duration-200 cursor-pointer" 
-                  onClick={(e) => {
-                    // Optional: Open image in full screen on click
-                    e.stopPropagation();
-                    window.open(photo.photo_url, '_blank');
-                  }}
-                />
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-6">
+          {photos.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {photos.map((photo, index) => (
+                <div key={photo.id || index} className="group relative bg-gray-50 rounded-xl overflow-hidden shadow-sm hover:shadow-lg transition-all duration-200">
+                  <img
+                    src={photo.photo_url}
+                    alt={`Vérification ${index + 1}`}
+                    className="w-full h-48 sm:h-56 object-cover group-hover:scale-105 transition-transform duration-300 cursor-pointer"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      window.open(photo.photo_url, '_blank');
+                    }}
+                    loading="lazy"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200"></div>
+                  <div className="absolute top-2 right-2 bg-white/90 rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                    <svg className="h-4 w-4 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                    </svg>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-12">
+              <div className="flex items-center justify-center w-16 h-16 bg-gray-100 rounded-full mx-auto mb-4">
+                <PhotoIcon className="h-8 w-8 text-gray-400" />
               </div>
-            ))}
-          </div>
-          
-          {/* Empty state */}
-          {photos.length === 0 && (
-            <div className="text-center py-8">
-              <p className="text-gray-500">Aucune photo disponible</p>
+              <p className="text-gray-500 text-lg font-medium">Aucune photo disponible</p>
+              <p className="text-gray-400 text-sm">Les photos de vérification apparaîtront ici</p>
             </div>
           )}
         </div>
-        
-        {/* Footer - optional */}
-        <div className="border-t p-3 sm:p-4 bg-gray-50 rounded-b-lg">
-          <p className="text-sm text-gray-600 text-center">
-            {photos.length} photo{photos.length > 1 ? 's' : ''} • Cliquez sur une image pour l'agrandir
-          </p>
-        </div>
+
+        {photos.length > 0 && (
+          <div className="border-t border-gray-100 p-4 bg-gray-50/50 text-center">
+            <p className="text-sm text-gray-600">
+              Cliquez sur une image pour l'ouvrir dans un nouvel onglet
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -109,10 +143,34 @@ const PermisDeFeuDetails = () => {
 
     const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedPhotos, setSelectedPhotos] = useState([]);
-  
+  const [showMobileActions, setShowMobileActions] = useState(false);
+
   const navigate = useNavigate();
   const { entreprise } = useAuth();
   const isMobile = useIsMobile(); // Move this to the top, before any state
+
+  // Click outside to close mobile actions
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (showMobileActions) {
+        // Check if the clicked element is not within the FAB container
+        const fabContainer = document.getElementById('mobile-fab-container');
+        if (fabContainer && !fabContainer.contains(event.target)) {
+          setShowMobileActions(false);
+        }
+      }
+    };
+
+    if (showMobileActions) {
+      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('touchstart', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
+  }, [showMobileActions]);
 
   // Helper function to format date/time in French
   const formatDateTime = (dateStr) => {
@@ -1074,176 +1132,388 @@ const openPhotoModal = (photos) => {
 
 
   return (
-    <div className="min-h-screen bg-gray-100 pt-20 p-2 sm:p-4 sm:pt-24 flex items-center justify-center">
-        <div className={`bg-white rounded shadow ${
-          isMobile ? 'max-w-full p-4 w-full' : 'max-w-2xl p-8'
-        }`}>
-          <h1 className={`font-bold text-center mb-6 ${
-            isMobile ? 'text-xl' : 'text-3xl'
-          }`}>Détails du Permis de Feu</h1>
-        <div className="space-y-4">
-          <div className={`flex ${isMobile ? 'flex-col' : 'justify-between'}`}>
-            <span className={`font-semibold text-gray-700 ${isMobile ? 'text-sm mb-1' : ''}`}>Date et Heure de début :</span>
-            <span className={`text-gray-900 ${isMobile ? 'text-sm' : ''}`}>{formatDateTime(permis.heure_debut)}</span>
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 pt-20 pb-8 px-4">
+      <div className="max-w-4xl mx-auto space-y-6">
+
+        {/* Header Section */}
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => navigate(-1)}
+            className="flex items-center justify-center w-10 h-10 bg-white rounded-full shadow-md hover:shadow-lg transition-all duration-200 hover:bg-gray-50"
+          >
+            <ArrowLeftIcon className="h-5 w-5 text-gray-600" />
+          </button>
+
+          <div className="flex-1">
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">
+              Détails du Permis de Feu
+            </h1>
+            <div className="flex items-center gap-2">
+              <Badge variant="secondary" className="text-xs font-medium">
+                N° {String(permis.id).padStart(4, '0')}
+              </Badge>
+              {timerData?.timer_2h ? (
+                <Badge variant="default" className="text-xs bg-green-100 text-green-800 border-green-200">
+                  <CheckCircleIcon className="h-3 w-3 mr-1" />
+                  Terminé
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="text-xs border-amber-200 text-amber-700 bg-amber-50">
+                  <ClockIcon className="h-3 w-3 mr-1" />
+                  En cours
+                </Badge>
+              )}
+            </div>
           </div>
-          <div className={`flex ${isMobile ? 'flex-col' : 'justify-between'}`}>
-            <span className={`font-semibold text-gray-700 ${isMobile ? 'text-sm mb-1' : ''}`}>Date et Heure de fin :</span>
-            <span className={`text-gray-900 ${isMobile ? 'text-sm' : ''}`}>{formatDateTime(permis.heure_fin)}</span>
-          </div>
-          <div className={`flex ${isMobile ? 'flex-col' : 'justify-between'}`}>
-            <span className={`font-semibold text-gray-700 ${isMobile ? 'text-sm mb-1' : ''}`}>Responsable de la surveillance :</span>
-            <span className={`text-gray-900 ${isMobile ? 'text-sm' : ''}`}>{permis.responsable?.name || "non défini"}</span>
-          </div>
-          <div className={`flex ${isMobile ? 'flex-col' : 'justify-between'}`}>
-            <span className={`font-semibold text-gray-700 ${isMobile ? 'text-sm mb-1' : ''}`}>Responsable du site :</span>
-            <span className={`text-gray-900 ${isMobile ? 'text-sm' : ''}`}>{permis.site_responsable?.name || "non défini"}</span>
-          </div>
-          <div className={`flex ${isMobile ? 'flex-col' : 'justify-between'}`}>
-            <span className={`font-semibold text-gray-700 ${isMobile ? 'text-sm mb-1' : ''}`}>Entreprise :</span>
-            <span className={`text-gray-900 ${isMobile ? 'text-sm' : ''}`}>{permis.entreprise?.name || "non défini"}</span>
-          </div>
-          <div className={`flex ${isMobile ? 'flex-col' : 'justify-between'}`}>
-            <span className={`font-semibold text-gray-700 ${isMobile ? 'text-sm mb-1' : ''}`}>Lieu :</span>
-            <span className={`text-gray-900 ${isMobile ? 'text-sm' : ''}`}>{permis.lieu?.name || "non défini"}</span>
-          </div>
-          <div className={`flex ${isMobile ? 'flex-col' : 'justify-between'}`}>
-            <span className={`font-semibold text-gray-700 ${isMobile ? 'text-sm mb-1' : ''}`}>Opération à effectuer :</span>
-            <span className={`text-gray-900 ${isMobile ? 'text-sm' : ''}`}>{permis.operation_description || "non défini"}</span>
-          </div>
-          
-          {/* Display Timer Data if available */}
-          {timerData && (
-            <div className="mt-6 border-t pt-4">
-              <h2 className={`font-bold mb-4 ${isMobile ? 'text-lg' : 'text-xl'}`}>Données de Surveillance</h2>
-              <div className="space-y-2">
+        </div>
+
+        {/* Main Information Card */}
+        <Card className="shadow-md border-0 bg-white/70 backdrop-blur-sm">
+          <CardHeader className="pb-4">
+            <CardTitle className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+              <InformationCircleIcon className="h-5 w-5 text-blue-600" />
+              Informations Générales
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+
+            {/* Date and Time Section */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="bg-blue-50 rounded-lg p-4 border border-blue-100">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="flex items-center justify-center w-8 h-8 bg-blue-100 rounded-full">
+                    <CalendarIcon className="h-4 w-4 text-blue-600" />
+                  </div>
+                  <span className="font-medium text-blue-900">Début</span>
+                </div>
+                <p className="text-sm text-blue-700 font-mono">{formatDateTime(permis.heure_debut)}</p>
+              </div>
+
+              <div className="bg-red-50 rounded-lg p-4 border border-red-100">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="flex items-center justify-center w-8 h-8 bg-red-100 rounded-full">
+                    <ClockIcon className="h-4 w-4 text-red-600" />
+                  </div>
+                  <span className="font-medium text-red-900">Fin</span>
+                </div>
+                <p className="text-sm text-red-700 font-mono">{formatDateTime(permis.heure_fin)}</p>
+              </div>
+            </div>
+
+            <Separator className="my-4" />
+
+            {/* Personnel Section */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center justify-center w-8 h-8 bg-green-100 rounded-full">
+                    <UserIcon className="h-4 w-4 text-green-600" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-900">Responsable surveillance</p>
+                    <p className="text-sm text-gray-600 truncate">{permis.responsable?.name || "Non défini"}</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center justify-center w-8 h-8 bg-purple-100 rounded-full">
+                    <UserIcon className="h-4 w-4 text-purple-600" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-900">Responsable site</p>
+                    <p className="text-sm text-gray-600 truncate">{permis.site_responsable?.name || "Non défini"}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center justify-center w-8 h-8 bg-blue-100 rounded-full">
+                    <BuildingOfficeIcon className="h-4 w-4 text-blue-600" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-900">Entreprise</p>
+                    <p className="text-sm text-gray-600 truncate">{permis.entreprise?.name || "Non défini"}</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center justify-center w-8 h-8 bg-orange-100 rounded-full">
+                    <MapPinIcon className="h-4 w-4 text-orange-600" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-900">Lieu</p>
+                    <p className="text-sm text-gray-600 truncate">{permis.lieu?.name || "Non défini"}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <Separator className="my-4" />
+
+            {/* Operation Description */}
+            <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="flex items-center justify-center w-8 h-8 bg-gray-200 rounded-full">
+                  <WrenchScrewdriverIcon className="h-4 w-4 text-gray-600" />
+                </div>
+                <span className="font-medium text-gray-900">Opération à effectuer</span>
+              </div>
+              <p className="text-sm text-gray-700 leading-relaxed">
+                {permis.operation_description || "Non défini"}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Surveillance Data Card */}
+        {timerData && (
+          <Card className="shadow-md border-0 bg-white/70 backdrop-blur-sm">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                <EyeIcon className="h-5 w-5 text-green-600" />
+                Données de Surveillance
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {timerData.timer_15min && (
-                  <div className={`flex ${isMobile ? 'flex-col' : 'justify-between'}`}>
-                    <span className={`font-semibold text-gray-700 ${isMobile ? 'text-sm mb-1' : ''}`}>Surveillance 15min :</span>
-                    <span className={`text-gray-900 ${isMobile ? 'text-sm' : ''}`}>{formatDateTime(timerData.timer_15min)}</span>
+                  <div className="bg-green-50 rounded-lg p-4 border border-green-100">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                      <span className="text-sm font-medium text-green-900">Surveillance 15min</span>
+                    </div>
+                    <p className="text-sm text-green-700 font-mono">{formatDateTime(timerData.timer_15min)}</p>
                   </div>
                 )}
+
                 {timerData.timer_dejeuner_15min && (
-                  <div className={`flex ${isMobile ? 'flex-col' : 'justify-between'}`}>
-                    <span className={`font-semibold text-gray-700 ${isMobile ? 'text-sm mb-1' : ''}`}>Surveillance déjeuner 15min :</span>
-                    <span className={`text-gray-900 ${isMobile ? 'text-sm' : ''}`}>{formatDateTime(timerData.timer_dejeuner_15min)}</span>
+                  <div className="bg-yellow-50 rounded-lg p-4 border border-yellow-100">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
+                      <span className="text-sm font-medium text-yellow-900">Surveillance déjeuner 15min</span>
+                    </div>
+                    <p className="text-sm text-yellow-700 font-mono">{formatDateTime(timerData.timer_dejeuner_15min)}</p>
                   </div>
                 )}
+
                 {timerData.timer_2h && (
-                  <div className={`flex ${isMobile ? 'flex-col' : 'justify-between'}`}>
-                    <span className={`font-semibold text-gray-700 ${isMobile ? 'text-sm mb-1' : ''}`}>Surveillance 2h :</span>
-                    <span className={`text-gray-900 ${isMobile ? 'text-sm' : ''}`}>{formatDateTime(timerData.timer_2h)}</span>
+                  <div className="bg-blue-50 rounded-lg p-4 border border-blue-100">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                      <span className="text-sm font-medium text-blue-900">Surveillance 2h</span>
+                    </div>
+                    <p className="text-sm text-blue-700 font-mono">{formatDateTime(timerData.timer_2h)}</p>
                   </div>
                 )}
+
                 {timerData.fin_pause && (
-                  <div className={`flex ${isMobile ? 'flex-col' : 'justify-between'}`}>
-                    <span className={`font-semibold text-gray-700 ${isMobile ? 'text-sm mb-1' : ''}`}>Fin de pause :</span>
-                    <span className={`text-gray-900 ${isMobile ? 'text-sm' : ''}`}>{formatDateTime(timerData.fin_pause)}</span>
-                  </div>
-                )}
-                {timerData.resultat_du_control && (
-                  <div className={`flex ${isMobile ? 'flex-col' : 'justify-between'}`}>
-                    <span className={`font-semibold text-gray-700 ${isMobile ? 'text-sm mb-1' : ''}`}>Résultat du contrôle :</span>
-                    <span className={`text-gray-900 ${isMobile ? 'text-sm' : ''}`}>{timerData.resultat_du_control}</span>
+                  <div className="bg-purple-50 rounded-lg p-4 border border-purple-100">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+                      <span className="text-sm font-medium text-purple-900">Fin de pause</span>
+                    </div>
+                    <p className="text-sm text-purple-700 font-mono">{formatDateTime(timerData.fin_pause)}</p>
                   </div>
                 )}
               </div>
-            </div>
-          )}
 
-          {/* Display Verification Forms if available */}
-          {verificationForms && verificationForms.length > 0 && (
-            <div className="mt-6 border-t pt-4">
-              <h2 className={`font-bold mb-4 ${isMobile ? 'text-lg' : 'text-xl'}`}>Formulaires de Vérification</h2>
+              {timerData.resultat_du_control && (
+                <div className="mt-4 bg-gray-50 rounded-lg p-4 border border-gray-200">
+                  <span className="text-sm font-medium text-gray-900 block mb-2">Résultat du contrôle</span>
+                  <p className="text-sm text-gray-700">{timerData.resultat_du_control}</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Verification Forms Card */}
+        {verificationForms && verificationForms.length > 0 && (
+          <Card className="shadow-md border-0 bg-white/70 backdrop-blur-sm">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                <CheckCircleIcon className="h-5 w-5 text-blue-600" />
+                Formulaires de Vérification ({verificationForms.length})
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
               <div className="space-y-4">
                 {verificationForms.map((form, index) => (
-                  <div key={index} className={`border rounded ${isMobile ? 'p-3' : 'p-4'}`}>
-                    <div className={`grid gap-4 ${isMobile ? 'grid-cols-1' : 'grid-cols-2'}`}>
-                      <div className={isMobile ? 'text-sm' : ''}>
-                        <span className="font-semibold">Type:</span> {form.type}
+                  <div key={index} className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md transition-shadow">
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="text-xs">
+                          {form.type}
+                        </Badge>
+                        {form.result === 'OK' ? (
+                          <Badge variant="default" className="text-xs bg-green-100 text-green-800 border-green-200">
+                            <CheckCircleIcon className="h-3 w-3 mr-1" />
+                            {form.result}
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-xs border-orange-200 text-orange-700 bg-orange-50">
+                            <ExclamationTriangleIcon className="h-3 w-3 mr-1" />
+                            {form.result}
+                          </Badge>
+                        )}
                       </div>
-                      <div className={isMobile ? 'text-sm' : ''}>
-                        <span className="font-semibold">Date:</span> {formatDateTime(form.date)}
-                      </div>
-                      <div className={isMobile ? 'text-sm' : ''}>
-                        <span className="font-semibold">Intervenant:</span> {form.intervenant_person?.name || 'N/A'}
-                      </div>
-                      <div className={isMobile ? 'text-sm' : ''}>
-                        <span className="font-semibold">Résultat:</span> {form.result}
-                      </div>
-                      {form.motif && (
-                        <div className={isMobile ? 'text-sm' : 'col-span-2'}>
-                          <span className="font-semibold">Motif:</span> {form.motif}
-                        </div>
-                      )}
-
-                      {/* Photo button */}
-                      {form.verification_photos && form.verification_photos.length > 0 && (
-                        <div className={isMobile ? 'mt-2' : 'col-span-2 mt-2'}>
-                          <button
-                            onClick={() => openPhotoModal(form.verification_photos)}
-                            className={`bg-indigo-600 text-white px-3 py-1 text-sm rounded hover:bg-indigo-500 ${
-                              isMobile ? 'w-full h-10' : ''
-                            }`}
-                          >
-                            Voir les {form.verification_photos.length} Photo(s)
-                          </button>
-                        </div>
-                      )}
+                      <span className="text-xs text-gray-500 font-mono">{formatDateTime(form.date)}</span>
                     </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+                      <div className="flex items-center gap-2">
+                        <UserIcon className="h-4 w-4 text-gray-400" />
+                        <span className="text-sm text-gray-600">
+                          {form.intervenant_person?.name || 'N/A'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {form.motif && (
+                      <div className="bg-gray-50 rounded p-3 mb-3">
+                        <p className="text-sm text-gray-700">{form.motif}</p>
+                      </div>
+                    )}
+
+                    {form.verification_photos && form.verification_photos.length > 0 && (
+                      <button
+                        onClick={() => openPhotoModal(form.verification_photos)}
+                        className="inline-flex items-center gap-2 px-3 py-2 bg-blue-50 text-blue-700 rounded-lg border border-blue-200 hover:bg-blue-100 transition-colors text-sm font-medium"
+                      >
+                        <PhotoIcon className="h-4 w-4" />
+                        Voir les {form.verification_photos.length} photo(s)
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>
-            </div>
-          )}
-        </div>
-        <div className={`flex mt-6 gap-3 ${
-          isMobile ? 'flex-col' : 'justify-between'
-        }`}>
-          <button
-            type="button"
-            onClick={() => navigate(-1)}
-            className={`bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-500 transition ${
-              isMobile ? 'w-full h-12 order-3' : ''
-            }`}
-          >
-            Retour à la liste
-          </button>
-          <div className={`flex gap-2 ${
-            isMobile ? 'flex-col w-full' : 'flex-row'
-          }`}>
-            <button
-              type="button"
-              onClick={generatePDF}
-              disabled={generatingPdf}
-              className={`bg-green-600 text-white px-4 py-2 rounded hover:bg-green-500 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 justify-center transition ${
-                isMobile ? 'w-full h-12 order-1' : ''
-              }`}
-            >
-              {generatingPdf ? (
-                <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-                  Génération...
-                </>
-              ) : (
-                'Télécharger PDF'
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Action Buttons - Smart Mobile/Desktop Layout */}
+        {/* Mobile: Collapsible FAB + Bottom Sheet */}
+        <div className="block sm:hidden">
+          {/* Bottom padding to ensure content is scrollable */}
+          <div className="h-32"></div>
+
+          {/* Floating Action Button - Mobile Only */}
+          <div className="fixed bottom-6 right-6 z-20">
+            <div className="relative" id="mobile-fab-container">
+              {/* Main FAB */}
+              <button
+                onClick={() => setShowMobileActions(!showMobileActions)}
+                className={`w-14 h-14 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-center ${
+                  showMobileActions ? 'rotate-45' : 'rotate-0'
+                }`}
+              >
+                {showMobileActions ? (
+                  <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                ) : (
+                  <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                  </svg>
+                )}
+              </button>
+
+              {/* Expandable Action Buttons */}
+              {showMobileActions && (
+                <div className="absolute bottom-16 right-0 space-y-3 animate-in slide-in-from-bottom-2 duration-200">
+                  <button
+                    onClick={() => navigate(-1)}
+                    className="flex items-center gap-2 bg-gray-600 hover:bg-gray-700 text-white px-4 py-3 rounded-full shadow-lg transition-all text-sm font-medium whitespace-nowrap"
+                  >
+                    <ArrowLeftIcon className="h-4 w-4" />
+                    Retour
+                  </button>
+
+                  <button
+                    onClick={() => navigate(`/tes/${id}`)}
+                    disabled={verification?.form_2h !== null && verification?.form_2h !== undefined}
+                    className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-4 py-3 rounded-full shadow-lg transition-all text-sm font-medium whitespace-nowrap"
+                  >
+                    <EyeIcon className="h-4 w-4" />
+                    Vérification
+                  </button>
+
+                  <button
+                    onClick={generatePDF}
+                    disabled={generatingPdf}
+                    className="flex items-center gap-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white px-4 py-3 rounded-full shadow-lg transition-all text-sm font-medium whitespace-nowrap"
+                  >
+                    {generatingPdf ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                        PDF...
+                      </>
+                    ) : (
+                      <>
+                        <DocumentArrowDownIcon className="h-4 w-4" />
+                        PDF
+                      </>
+                    )}
+                  </button>
+                </div>
               )}
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate(`/tes/${id}`)}
-              disabled={verification?.form_2h !== null && verification?.form_2h !== undefined}
-              className={`bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-500 disabled:opacity-50 disabled:hover:bg-blue-600 transition ${
-                isMobile ? 'w-full h-12 order-2' : ''
-              }`}
-            >
-              Verification
-            </button>
+            </div>
           </div>
+        </div>
+
+        {/* Desktop: Fixed Bottom Bar */}
+        <div className="hidden sm:block">
+          <div className="fixed left-0 right-0 bottom-0 bg-white border-t border-gray-200 z-10 shadow-lg" style={{ paddingBottom: 0, marginBottom: 0 }}>
+            <div className="max-w-4xl mx-auto p-4" style={{ paddingBottom: '16px' }}>
+              <div className="grid grid-cols-3 gap-3">
+                <button
+                  type="button"
+                  onClick={() => navigate(-1)}
+                  className="flex items-center justify-center gap-2 px-4 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-all font-medium shadow-md hover:shadow-lg"
+                >
+                  <ArrowLeftIcon className="h-5 w-5" />
+                  Retour
+                </button>
+
+                <button
+                  type="button"
+                  onClick={generatePDF}
+                  disabled={generatingPdf}
+                  className="flex items-center justify-center gap-2 px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all font-medium shadow-md hover:shadow-lg"
+                >
+                  {generatingPdf ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                      Génération...
+                    </>
+                  ) : (
+                    <>
+                      <DocumentArrowDownIcon className="h-5 w-5" />
+                      Télécharger PDF
+                    </>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => navigate(`/tes/${id}`)}
+                  disabled={verification?.form_2h !== null && verification?.form_2h !== undefined}
+                  className="flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all font-medium shadow-md hover:shadow-lg"
+                >
+                  <EyeIcon className="h-5 w-5" />
+                  Vérification
+                </button>
+              </div>
+            </div>
+          </div>
+          {/* Bottom Spacing for Fixed Actions - Desktop Only */}
+          <div className="h-24"></div>
         </div>
       </div>
 
-    {/* Photo Modal */}
-    {isModalOpen && <PhotoModal photos={selectedPhotos} onClose={() => setIsModalOpen(false)} />}
+      {/* Photo Modal */}
+      {isModalOpen && <PhotoModal photos={selectedPhotos} onClose={() => setIsModalOpen(false)} />}
     </div>
   );
 };

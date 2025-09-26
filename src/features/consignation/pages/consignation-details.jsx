@@ -3,11 +3,53 @@ import { useParams, Link } from "react-router-dom";
 import { supabase } from "@/features/auth/utils/supabase-client";
 import { LoadingSpinner } from "@/components/loadingspinner";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
 import { useNavigate } from "react-router-dom";
 import jsPDF from "jspdf";
 import { useAuth } from "@/features/auth/utils/auth-context";
 import { useIsMobile } from "@/hooks/use-mobile";
 import Navbar from "@/components/app-navbar";
+import {
+  CalendarIcon,
+  ClockIcon,
+  UserIcon,
+  BuildingOfficeIcon,
+  MapPinIcon,
+  WrenchScrewdriverIcon,
+  KeyIcon,
+  LockClosedIcon,
+  CheckCircleIcon,
+  ExclamationTriangleIcon,
+  ClockIcon as TimerIcon,
+  ArrowLeftIcon,
+  ShieldCheckIcon,
+  CogIcon,
+  InformationCircleIcon,
+  BoltIcon,
+  Bars3BottomLeftIcon
+} from "@heroicons/react/24/outline";
+
+
+// Button Loading Component
+const ButtonSpinner = ({ children, loading, loadingText, ...props }) => {
+  return (
+    <button
+      {...props}
+      disabled={loading || props.disabled}
+      className={`${props.className} ${loading ? 'cursor-not-allowed' : ''}`}
+    >
+      {loading ? (
+        <div className="flex items-center justify-center gap-2">
+          <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+          {loadingText || "Chargement..."}
+        </div>
+      ) : (
+        children
+      )}
+    </button>
+  );
+};
 
 const ConsignationDetails = () => {
   const { id } = useParams();
@@ -34,6 +76,13 @@ const ConsignationDetails = () => {
   // ── Add these at the top of your component ──
   const [singleConsign, setSingleConsign] = useState(null);
   const [deconsignation, setDeconsignation] = useState({});
+
+  // Loading states for animations
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [isConfirming, setIsConfirming] = useState(false);
+  const [isConfirmingDeconsignation, setIsConfirmingDeconsignation] = useState(false);
+  const [isContinuing, setIsContinuing] = useState(false);
+  const [isAddingMultiConsignation, setIsAddingMultiConsignation] = useState(false);
   
   // Find the first consignation date (earliest) for multiconsignations
   useEffect(() => {
@@ -1173,6 +1222,52 @@ doc.text("• Signature de l'exécuteur :", marginX + 5, ln2);
     }
   }
 
+  // Enhanced handlers with loading states
+  const handleConfirmationWithLoading = async (id, status) => {
+    setIsConfirming(true);
+    try {
+      await handleConfirmation(id, status);
+    } finally {
+      setIsConfirming(false);
+    }
+  };
+
+  const handleConfirmationDeconsignationWithLoading = async (id, status) => {
+    setIsConfirmingDeconsignation(true);
+    try {
+      await handleConfirmationDeconsignation(id, status);
+    } finally {
+      setIsConfirmingDeconsignation(false);
+    }
+  };
+
+  const handleContinuationConsignationWithLoading = async (id, status) => {
+    setIsContinuing(true);
+    try {
+      await handleContinuationConsignation(id, status);
+    } finally {
+      setIsContinuing(false);
+    }
+  };
+
+  const handleGeneratePdfWithLoading = async () => {
+    setIsGeneratingPdf(true);
+    try {
+      await handleGenerateExactCustomPDF();
+    } finally {
+      setIsGeneratingPdf(false);
+    }
+  };
+
+  const handleMultiConsignationWithLoading = () => {
+    setIsAddingMultiConsignation(true);
+    // Add a small delay to show loading animation
+    setTimeout(() => {
+      handleMultiConsignation();
+      setIsAddingMultiConsignation(false);
+    }, 500);
+  };
+
   // Helper functions for formatting date and time in French.
   const formatDate = (dateStr) => {
       const d = new Date(dateStr);
@@ -1188,170 +1283,344 @@ doc.text("• Signature de l'exécuteur :", marginX + 5, ln2);
       });
   };
 
+  // Helper function to get status config
+  const getStatusConfig = (status) => {
+    const configs = {
+      pending: {
+        color: "bg-amber-50 border-amber-200 text-amber-800",
+        icon: TimerIcon,
+        text: "En attente",
+        bgGradient: "from-amber-50 to-yellow-50"
+      },
+      confirmed: {
+        color: "bg-green-50 border-green-200 text-green-800",
+        icon: CheckCircleIcon,
+        text: "Confirmé",
+        bgGradient: "from-green-50 to-emerald-50"
+      },
+      deconsigné: {
+        color: "bg-red-50 border-red-200 text-red-800",
+        icon: ExclamationTriangleIcon,
+        text: "Déconsigné",
+        bgGradient: "from-red-50 to-rose-50"
+      },
+      planified: {
+        color: "bg-blue-50 border-blue-200 text-blue-800",
+        icon: ClockIcon,
+        text: "Planifié",
+        bgGradient: "from-blue-50 to-sky-50"
+      },
+      archived: {
+        color: "bg-gray-50 border-gray-200 text-gray-800",
+        icon: ShieldCheckIcon,
+        text: "Archivée",
+        bgGradient: "from-gray-50 to-slate-50"
+      }
+    };
+    return configs[status] || configs.pending;
+  };
+
+  const statusConfig = getStatusConfig(consignation.status);
+  const StatusIcon = statusConfig.icon;
+
   return (
     <>
       <Navbar />
-      <div className="min-h-screen flex items-center justify-center bg-gray-100 p-2 sm:p-4 pt-20">
-        <div className={`w-full bg-white rounded-xl shadow-lg ${
-          isMobile ? 'max-w-full p-4 mt-4' : 'max-w-lg p-8 mt-8'
-        }`}>
-          <h1 className={`font-bold text-center mb-6 ${
-            isMobile ? 'text-xl' : 'text-3xl'
-          }`}>Détails de la consignation</h1>
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 pt-20 pb-8 px-4">
+        <div className="max-w-4xl mx-auto space-y-6">
 
-          <div className="space-y-4">
-            <div className="flex justify-between">
-              <span className="font-semibold text-gray-700">Date et heure :</span>
-              <span className="text-gray-900">{formatDateTime(consignation.date_consignation)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="font-semibold text-gray-700">Zone :</span>
-              <span className="text-gray-900">{consignation.zones?.name || "pas de valeur"}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="font-semibold text-gray-700">Consignateur :</span>
-              <span className="text-gray-900">{consignation.consignateur?.name || "pas de valeur"}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="font-semibold text-gray-700">Entreprise :</span>
-              <span className="text-gray-900">{consignation.entreprises?.name || "pas de valeur"}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="font-semibold text-gray-700">Équipements :</span>
-              <span className="text-gray-900">{consignation.equipements || "pas de valeur"}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="font-semibold text-gray-700">Numéro de cadenas :</span>
-              <span className="text-gray-900">{consignation.cadenas_num || "pas de valeur"}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="font-semibold text-gray-700">Numéro de LockBox :</span>
-              <span className="text-gray-900">{consignation.lockbox || "pas de valeur"}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="font-semibold text-gray-700">Statut :</span>
-              <Badge
-                className={`px-2 py-1 text-xs ${
-                  consignation.status === "pending"
-                    ? "bg-gray-200/80 text-black"
-                    : consignation.status === "confirmed"
-                    ? "bg-green-600/80 text-white"
-                    : consignation.status === "deconsigné"
-                    ? "bg-red-600/80 text-white"
-                    : consignation.status === "planified"
-                    ? "bg-sky-500/80 text-white" 
-                    : "bg-gray-800/80 text-white"
-                }`}
-              >
-                {statusMapping[consignation.status] || consignation.status}
-              </Badge>
-            </div>
-            {consignation.status === "deconsigné" && (
-              <div className="flex justify-between">
-                <span className="font-semibold text-gray-700">Date de déconsignation :</span>
-                <span className="text-gray-900">{formatDateTime(createdAt.created_at)}</span>
-              </div>
-            )}
-            {consignation.status === "pending" && (
-              <span className="text-sm font-medium text-gray-900 mx-5">
-                La salle de contrôle déclare être informé de la consignation en cours
-              </span>
-            )}
-          </div>
-
-          <div className={`flex mt-5 gap-3 ${
-            isMobile ? 'flex-col' : 'justify-between'
-          }`}>
+          {/* Header Section */}
+          <div className="flex items-center gap-4">
             <button
-              type="button"
-              className={`bg-indigo-600 text-white px-6 py-2 rounded hover:bg-indigo-500 transition active:bg-indigo-800 ${
-                isMobile ? 'w-full h-12 order-2' : 'inline-block'
-              }`}
               onClick={() => navigate(-1)}
+              className="flex items-center justify-center w-10 h-10 bg-white rounded-full shadow-md hover:shadow-lg transition-all duration-200 hover:bg-gray-50"
             >
-              Retour à la liste
+              <ArrowLeftIcon className="h-5 w-5 text-gray-600" />
             </button>
 
-            {consignation.status === "pending" ? (
-              <button
-                type="button"
-                className={`bg-green-600 text-white px-6 py-2 rounded hover:bg-green-500 transition active:bg-green-800 ${
-                  isMobile ? 'w-full h-12 order-1' : 'inline-block'
-                }`}
-                onClick={() => handleConfirmation(consignation.id, consignation.status)}
-              >
-                Confirmer
-              </button>
-            ) : consignation.status === "confirmed" ? (
-              <Link to={`/deconsignation/${id}`} className={isMobile ? 'w-full order-1' : ''}>
+            <div className="flex-1">
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">
+                Détails de la Consignation
+              </h1>
+              <div className="flex items-center gap-2">
+                <Badge variant="secondary" className="text-xs font-medium">
+                  ID #{consignation.id}
+                </Badge>
+                <Badge className={`text-xs ${statusConfig.color} border`}>
+                  <StatusIcon className="h-3 w-3 mr-1" />
+                  {statusConfig.text}
+                </Badge>
+              </div>
+            </div>
+          </div>
+
+          {/* Status Alert Card */}
+          <Card className={`shadow-md border-0 bg-gradient-to-r ${statusConfig.bgGradient} hover:shadow-lg transition-all duration-200`}>
+            <CardContent className="p-6">
+              <div className="flex items-center gap-3">
+                <div className={`flex items-center justify-center w-12 h-12 rounded-full ${statusConfig.color} border-2 ${consignation.status === "pending" ? "" : ""}`}>
+                  <StatusIcon className="h-6 w-6" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-semibold text-gray-900 mb-1">
+                    Statut: {statusConfig.text}
+                  </h3>
+                  {consignation.status === "pending" && (
+                    <p className="text-sm text-gray-700">
+                      La salle de contrôle déclare être informée de la consignation en cours
+                    </p>
+                  )}
+                  {consignation.status === "confirmed" && (
+                    <p className="text-sm text-gray-700">
+                      Consignation confirmée et active
+                    </p>
+                  )}
+                  {consignation.status === "deconsigné" && (
+                    <p className="text-sm text-gray-700">
+                      Déconsignation effectuée - En attente de confirmation
+                    </p>
+                  )}
+                  {consignation.status === "planified" && (
+                    <p className="text-sm text-gray-700">
+                      Consignation planifiée - Prête à être exécutée
+                    </p>
+                  )}
+                  {consignation.status === "archived" && (
+                    <p className="text-sm text-gray-700">
+                      Consignation archivée et terminée
+                    </p>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Main Information Card */}
+          <Card className="shadow-md border-0 bg-white/70 backdrop-blur-sm">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                <InformationCircleIcon className="h-5 w-5 text-blue-600" />
+                Informations Générales
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+
+              {/* Date and Time Section */}
+              <div className="bg-blue-50 rounded-lg p-4 border border-blue-100 hover:bg-blue-100 transition-colors duration-200 hover:shadow-md">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="flex items-center justify-center w-8 h-8 bg-blue-100 rounded-full hover:bg-blue-200 transition-colors duration-200">
+                    <CalendarIcon className="h-4 w-4 text-blue-600" />
+                  </div>
+                  <span className="font-medium text-blue-900">Date et heure de consignation</span>
+                </div>
+                <p className="text-sm text-blue-700 font-mono">{formatDateTime(consignation.date_consignation)}</p>
+              </div>
+
+              {consignation.status === "deconsigné" && (
+                <div className="bg-red-50 rounded-lg p-4 border border-red-100 hover:bg-red-100 transition-colors duration-200 hover:shadow-md ">
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="flex items-center justify-center w-8 h-8 bg-red-100 rounded-full hover:bg-red-200 transition-colors duration-200">
+                      <ClockIcon className="h-4 w-4 text-red-600" />
+                    </div>
+                    <span className="font-medium text-red-900">Date de déconsignation</span>
+                  </div>
+                  <p className="text-sm text-red-700 font-mono">{formatDateTime(createdAt.created_at)}</p>
+                </div>
+              )}
+
+              <Separator className="my-4" />
+
+              {/* Personnel & Location Section */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center justify-center w-8 h-8 bg-green-100 rounded-full">
+                      <UserIcon className="h-4 w-4 text-green-600" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900">Consignateur</p>
+                      <p className="text-sm text-gray-600 truncate">{consignation.consignateur?.name || "Non défini"}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center justify-center w-8 h-8 bg-blue-100 rounded-full">
+                      <BuildingOfficeIcon className="h-4 w-4 text-blue-600" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900">Entreprise</p>
+                      <p className="text-sm text-gray-600 truncate">{consignation.entreprises?.name || "Non défini"}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center justify-center w-8 h-8 bg-orange-100 rounded-full">
+                      <MapPinIcon className="h-4 w-4 text-orange-600" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900">Zone</p>
+                      <p className="text-sm text-gray-600 truncate">{consignation.zones?.name || "Non défini"}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center justify-center w-8 h-8 bg-purple-100 rounded-full">
+                      <CogIcon className="h-4 w-4 text-purple-600" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900">Équipements</p>
+                      <p className="text-sm text-gray-600 truncate">{consignation.equipements || "Non défini"}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <Separator className="my-4" />
+
+              {/* Security Information */}
+              <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="flex items-center justify-center w-8 h-8 bg-gray-200 rounded-full">
+                    <ShieldCheckIcon className="h-4 w-4 text-gray-600" />
+                  </div>
+                  <span className="font-medium text-gray-900">Sécurité et Verrouillage</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center justify-center w-6 h-6 bg-yellow-100 rounded-full">
+                      <KeyIcon className="h-3 w-3 text-yellow-600" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-xs font-medium text-gray-900">N° Cadenas</p>
+                      <p className="text-sm text-gray-700 font-mono">{consignation.cadenas_num || "Non défini"}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center justify-center w-6 h-6 bg-indigo-100 rounded-full">
+                      <LockClosedIcon className="h-3 w-3 text-indigo-600" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-xs font-medium text-gray-900">N° LockBox</p>
+                      <p className="text-sm text-gray-700 font-mono">{consignation.lockbox || "Non défini"}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Action Buttons */}
+          <Card className="shadow-md border-0 bg-white/70 backdrop-blur-sm">
+            <CardContent className="p-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <button
                   type="button"
-                  className={`bg-red-600 text-white px-6 py-2 rounded hover:bg-red-500 transition active:bg-red-800 ${
-                    isMobile ? 'w-full h-12' : 'inline-block'
-                  }`}
+                  onClick={() => navigate(-1)}
+                  className="flex items-center justify-center gap-2 px-4 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-all font-medium shadow-md hover:shadow-lg"
                 >
-                  Déconsigner
+                  <ArrowLeftIcon className="h-5 w-5" />
+                  Retour à la liste
                 </button>
-              </Link>
-            ) : consignation.status === "deconsigné" ? (
-              <button
-                type="button"
-                className={`bg-fuchsia-600 text-white px-6 py-2 rounded hover:bg-fuchsia-500 transition active:bg-fuchsia-800 ${
-                  isMobile ? 'w-full h-12 order-1' : 'inline-block'
-                }`}
-                onClick={() =>
-                  handleConfirmationDeconsignation(consignation.id, consignation.status)
-                }
-              >
-                Confirmer la déconsignation
-              </button>
-            ) : consignation.status === "planified" ? (
-              <button
-                type="button"
-                className={`bg-sky-600 text-white px-6 py-2 rounded hover:bg-sky-500 transition active:bg-blue-800 ${
-                  isMobile ? 'w-full h-12 order-1' : 'inline-block'
-                }`}
-                onClick={() =>
-                  handleContinuationConsignation(consignation.id, consignation.status)
-                }
-              >
-                Continue la consignation
-              </button>
-            ) : (
-              <button
-                type="button"
-                className={`bg-gray-600 text-white px-6 py-2 rounded hover:bg-gray-500 transition active:bg-gray-800 ${
-                  isMobile ? 'w-full h-12 order-1' : 'inline-block'
-                }`}
-                disabled
-              >
-                Archivée
-              </button>
-            )}
-          </div>
 
-          <div className={`mt-5 flex gap-3 ${
-            isMobile ? 'flex-col' : 'flex-row'
-          }`}>
-            <button
-              type="button"
-              className={`bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-500 transition active:bg-blue-800 ${
-                isMobile ? 'w-full h-12' : 'inline-block'
-              }`}
-              onClick={handleGenerateExactCustomPDF}
-            >
-              Imprimer le PDF final
-            </button>
-            <button
-              type="button"
-              className={`bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-500 transition active:bg-blue-800 ${
-                isMobile ? 'w-full h-12' : 'inline-block'
-              }`}
-              onClick={handleMultiConsignation}
-            >
-              Ajoute une consignation multiple
-            </button>
-          </div>
+                {consignation.status === "pending" ? (
+                  <ButtonSpinner
+                    type="button"
+                    onClick={() => handleConfirmationWithLoading(consignation.id, consignation.status)}
+                    className="flex items-center justify-center gap-2 px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all font-medium shadow-md hover:shadow-lg"
+                    loading={isConfirming}
+                    loadingText="Confirmation..."
+                  >
+                    <CheckCircleIcon className="h-5 w-5" />
+                    Confirmer
+                  </ButtonSpinner>
+                ) : consignation.status === "confirmed" ? (
+                  <Link to={`/deconsignation/${id}`} className="w-full">
+                    <button
+                      type="button"
+                      className="flex items-center justify-center gap-2 w-full px-4 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-all font-medium shadow-md hover:shadow-lg"
+                    >
+                      <BoltIcon className="h-5 w-5" />
+                      Déconsigner
+                    </button>
+                  </Link>
+                ) : consignation.status === "deconsigné" ? (
+                  <ButtonSpinner
+                    type="button"
+                    onClick={() => handleConfirmationDeconsignationWithLoading(consignation.id, consignation.status)}
+                    className="flex items-center justify-center gap-2 px-4 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all font-medium shadow-md hover:shadow-lg"
+                    loading={isConfirmingDeconsignation}
+                    loadingText="Confirmation..."
+                  >
+                    <ShieldCheckIcon className="h-5 w-5" />
+                    Confirmer la déconsignation
+                  </ButtonSpinner>
+                ) : consignation.status === "planified" ? (
+                  <ButtonSpinner
+                    type="button"
+                    onClick={() => handleContinuationConsignationWithLoading(consignation.id, consignation.status)}
+                    className="flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all font-medium shadow-md hover:shadow-lg"
+                    loading={isContinuing}
+                    loadingText="Chargement..."
+                  >
+                    <Bars3BottomLeftIcon className="h-5 w-5" />
+                    Continuer la consignation
+                  </ButtonSpinner>
+            ) : (
+                  <button
+                    type="button"
+                    className="flex items-center justify-center gap-2 px-4 py-3 bg-gray-400 text-white rounded-lg cursor-not-allowed opacity-60 font-medium"
+                    disabled
+                  >
+                    <ShieldCheckIcon className="h-5 w-5" />
+                    Archivée
+                  </button>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Additional Actions Card */}
+          <Card className="shadow-md border-0 bg-white/70 backdrop-blur-sm">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                <Bars3BottomLeftIcon className="h-5 w-5 text-purple-600" />
+                Actions Supplémentaires
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <ButtonSpinner
+                  type="button"
+                  onClick={handleGeneratePdfWithLoading}
+                  className="flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all font-medium shadow-md hover:shadow-lg"
+                  loading={isGeneratingPdf}
+                  loadingText="Génération PDF..."
+                >
+                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                  </svg>
+                  Imprimer le PDF final
+                </ButtonSpinner>
+
+                <ButtonSpinner
+                  type="button"
+                  onClick={handleMultiConsignationWithLoading}
+                  className="flex items-center justify-center gap-2 px-4 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all font-medium shadow-md hover:shadow-lg"
+                  loading={isAddingMultiConsignation}
+                  loadingText="Redirection..."
+                >
+                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                  </svg>
+                  Ajouter consignation multiple
+                </ButtonSpinner>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
     </>

@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { Disclosure, Menu, Transition } from "@headlessui/react";
 import { Bars3Icon, BellIcon, XMarkIcon } from "@heroicons/react/24/outline";
 import { Link, useLocation, useNavigate } from "react-router-dom";
@@ -24,6 +24,7 @@ export default function Navbar() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const disclosureRef = useRef();
 
   // Fonction de déconnexion utilisant la logique Supabase
   const handleLogout = async () => {
@@ -40,6 +41,7 @@ export default function Navbar() {
     // Menu automatically closes when route changes due to Disclosure component behavior
   }, [location.pathname]);
 
+
   // Données de l'utilisateur avec gestion d'erreur
   const userbar = {
     name: user?.user_metadata?.full_name || user?.email?.split('@')[0] || "Utilisateur",
@@ -51,8 +53,28 @@ export default function Navbar() {
 
   return (
     <>
-      <Disclosure as="nav" className="bg-gray-900 fixed w-full top-0 left-0 z-50 shadow-lg border-b border-gray-700">
-        {({ open }) => (
+      <Disclosure as="nav" ref={disclosureRef} className="bg-gray-900 fixed w-full top-0 left-0 z-50 shadow-lg border-b border-gray-700">
+        {({ open, close }) => {
+          // Update the click outside effect to use the close function
+          useEffect(() => {
+            if (!open) return; // Only add listeners when menu is open
+
+            const handleClickOutside = (event) => {
+              if (disclosureRef.current && !disclosureRef.current.contains(event.target)) {
+                close();
+              }
+            };
+
+            document.addEventListener('mousedown', handleClickOutside);
+            document.addEventListener('touchstart', handleClickOutside);
+
+            return () => {
+              document.removeEventListener('mousedown', handleClickOutside);
+              document.removeEventListener('touchstart', handleClickOutside);
+            };
+          }, [open, close]);
+
+          return (
           <>
             <div className="mx-auto max-w-7xl px-3 sm:px-6 lg:px-8">
               <div className="flex h-16 items-center justify-between">
@@ -262,7 +284,8 @@ export default function Navbar() {
               </Disclosure.Panel>
             </Transition>
           </>
-        )}
+          );
+        }}
       </Disclosure>
 
     </>
