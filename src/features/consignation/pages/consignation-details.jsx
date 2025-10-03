@@ -217,10 +217,11 @@ const { data: deconsRecords, error: deconsError } = await supabase
           id: decons.id,
           created_at: decons.created_at,
           signature_demandeur: decons.signature_demandeur,
+          signature_deconsignateur: decons.signature_deconsignateur,
           entreprises: decons.entreprises,
           demandeur: decons.demandeur,
           deconsignateur: decons.deconsignateur,
-          
+
           // From consignations table
           pdp: cons.pdp,
           designation_travaux: cons.designation_travaux,
