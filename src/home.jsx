@@ -257,7 +257,8 @@ const ConsignationHome = () => {
       selector: (row) => row.entreprises?.name || "non-défini",
       cell: (row) =>
         row.multi_consignation_id &&
-        ["pending", "confirmed"].includes(row.status) ? (
+        ["pending", "confirmed"].includes(row.status) &&
+        row.count > 1 ? (
           <span
             title="Consignation multiple"
             style={{ fontSize: "1.2rem", color: "#4caf50" }}
