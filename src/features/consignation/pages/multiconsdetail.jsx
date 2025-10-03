@@ -3,13 +3,39 @@ import { supabase } from "@/features/auth/utils/supabase-client";
 import React, { useEffect, useState } from "react";
 import jsPDF from "jspdf";
 import { useNavigate, useParams } from "react-router-dom";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import {
+  BuildingOfficeIcon,
+  UserIcon,
+  EyeIcon,
+  PlusIcon,
+  PrinterIcon,
+  CheckCircleIcon,
+  ClockIcon,
+  InformationCircleIcon,
+  ArrowLeftIcon,
+  DocumentTextIcon,
+  UserGroupIcon,
+  CalendarIcon,
+  ShieldCheckIcon,
+  ExclamationTriangleIcon,
+  ChartBarIcon,
+  CogIcon
+} from "@heroicons/react/24/outline";
 
 const MulticonsDetail = () => {
     const { id } = useParams();
     const navigate = useNavigate();
+    const isMobile = useIsMobile();
     
     const [consignations, setConsignations] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [confirming, setConfirming] = useState(false);
+    const [printing, setPrinting] = useState(false);
+    const [expandedCard, setExpandedCard] = useState(null);
     
     // ── Add these at the top of your component ──
     const [singleConsign, setSingleConsign] = useState(null);
@@ -292,6 +318,7 @@ const fetchBlendedDeconsignations = async () => {
     }
 
     const handleConfirmation = async () => {
+        setConfirming(true);
         try {
             const { error } = await supabase
                 .from("consignations")
@@ -299,13 +326,18 @@ const fetchBlendedDeconsignations = async () => {
                 .eq("multi_consignation_id", id); // Update all consignations with the same multi_consignation_id
             if (error) {
                 console.error("Erreur lors de la mise à jour des consignations :", error);
+                alert("Erreur lors de la confirmation des consignations");
             } else {
                 console.log("Tous les statuts des consignations ont été mis à jour avec succès.");
+                // Refresh the data to show updated status
+                window.location.reload();
             }
         } catch (err) {
             console.error("Erreur inattendue :", err);
+            alert("Une erreur inattendue s'est produite");
+        } finally {
+            setConfirming(false);
         }
-        navigate("/consignationList");
     };
 
     if (loading) {
@@ -317,38 +349,46 @@ const fetchBlendedDeconsignations = async () => {
     }
 
 const handlePrint = async () => {
-    // First check if we have at least some consignation data
-    if (consignations.length === 0) {
-        console.error("No consignation data available");
-        alert("Impossible de générer le PDF : Aucune donnée de consignation disponible");
-        return;
-    }
-    
-    // Use the first consignation as "consData" for header/static info
-    const consData = consignations[0] || {};
-    
-    // Fetch ALL consignations regardless of status for the PDF
-    const allConsignations = await fetchAllConsignationsForPDF();
-    
-    // Also ensure blended deconsignations are loaded
-    let blendedDecons = blendedDeconsignations;
-    if (blendedDeconsignations.length === 0) {
-        console.log("No deconsignation data loaded, attempting to fetch...");
-        await fetchBlendedDeconsignations();
-        blendedDecons = blendedDeconsignations;
-    }
-    
-    // Generate & save PDF with ALL consignations
-    const doc = generateExactFormPDF(
-        consData,
-        deconsignation || {},
-        consignationTypes,
-        allConsignations, // Use ALL consignations here instead of filtered ones
-        blendedDecons || [],
-    );
-    
-    if (doc) {
-        doc.save(`multiconsignation-${id}.pdf`);
+    setPrinting(true);
+    try {
+        // First check if we have at least some consignation data
+        if (consignations.length === 0) {
+            console.error("No consignation data available");
+            alert("Impossible de générer le PDF : Aucune donnée de consignation disponible");
+            return;
+        }
+
+        // Use the first consignation as "consData" for header/static info
+        const consData = consignations[0] || {};
+
+        // Fetch ALL consignations regardless of status for the PDF
+        const allConsignations = await fetchAllConsignationsForPDF();
+
+        // Also ensure blended deconsignations are loaded
+        let blendedDecons = blendedDeconsignations;
+        if (blendedDeconsignations.length === 0) {
+            console.log("No deconsignation data loaded, attempting to fetch...");
+            await fetchBlendedDeconsignations();
+            blendedDecons = blendedDeconsignations;
+        }
+
+        // Generate & save PDF with ALL consignations
+        const doc = generateExactFormPDF(
+            consData,
+            deconsignation || {},
+            consignationTypes,
+            allConsignations, // Use ALL consignations here instead of filtered ones
+            blendedDecons || [],
+        );
+
+        if (doc) {
+            doc.save(`multiconsignation-${id}.pdf`);
+        }
+    } catch (error) {
+        console.error("Error generating PDF:", error);
+        alert("Erreur lors de la génération du PDF");
+    } finally {
+        setPrinting(false);
     }
 };
 
@@ -414,6 +454,7 @@ const generateAndSavePDF = (consData) => {
             
             const addSignatureImage = (doc, signatureData, x, y, width, height) => {
                 if (!signatureData) return;
+        
                 
                 try {
                     // Basic check - if it starts with data:image/ it's likely valid
@@ -428,6 +469,16 @@ const generateAndSavePDF = (consData) => {
                 }
             };
             
+            
+            // Helper function to print text with bold dynamic values
+            const addTextWithBoldValue = (doc, label, value, x, y) => {
+                doc.setFont("helvetica", "normal");
+                const labelWidth = doc.getTextWidth(label);
+                doc.text(label, x, y);
+                doc.setFont("helvetica", "bold");
+                doc.text(value, x + labelWidth, y);
+                doc.setFont("helvetica", "normal");
+            };
             // Helper for PDF date formatting with error handling
             const formatDateTimePDF = (dateStr) => {
                 if (!dateStr) return "";
@@ -492,7 +543,7 @@ const generateAndSavePDF = (consData) => {
             doc.setFont("helvetica", "normal");
             doc.setFontSize(FONT.BODY);
             doc.rect(marginX, currentY, usableWidth, 40, "S");
-            doc.text(`Sur le site : ${siteName}`, marginX + 5, currentY + 25);
+            addTextWithBoldValue(doc, "Sur le site : ", siteName, marginX + 5, currentY + 25);
             currentY += 50;
             
             // 3. TYPE CONSIGNATION table
@@ -550,11 +601,11 @@ const generateAndSavePDF = (consData) => {
             // Static labels for consignation info
             doc.setFontSize(FONT.BODY);
             doc.setFont("helvetica", "normal");
-            doc.text(`Consignation demandée le : ${formatDateTimePDF(consData.date_consignation || "")}`, marginX + 5, currentY);
+            addTextWithBoldValue(doc, "Consignation demandée le : ", formatDateTimePDF(consData.date_consignation || ""), marginX + 5, currentY);
             currentY += 15;
-            doc.text(`Zone concernée : ${zoneName}`, marginX + 5, currentY);
+            addTextWithBoldValue(doc, "Zone concernée : ", zoneName, marginX + 5, currentY);
             currentY += 15;
-            doc.text(`Équipement concerné : ${equipements}`, marginX + 5, currentY);
+            addTextWithBoldValue(doc, "Équipement concerné : ", equipements, marginX + 5, currentY);
             currentY += 25;
             
             // CONSIGNATION TABLE
@@ -659,23 +710,25 @@ const generateAndSavePDF = (consData) => {
             }
             
             // Consignation executed block
+
+            //this one claude this one 
             const execY = currentY;
-            const execH = 100;
+            const execH = 160;
             doc.rect(marginX, execY, usableWidth, execH, "S");
             
             let ln = execY + 15;
             doc.setFont("helvetica", "normal");
             doc.setFontSize(FONT.SMALL);
             
-            doc.text(`Consignation exécutée le :  ${formatDateTimePDF(consData.date_consignation || "")}`, marginX + 5, ln);
+            addTextWithBoldValue(doc, "Consignation exécutée le :  ", formatDateTimePDF(consData.date_consignation || ""), marginX + 5, ln);
             ln += 10;
-            doc.text(`• Selon les procédures en vigueur sur le site (${siteName})`, marginX + 5, ln);
+            addTextWithBoldValue(doc, "• Selon les procédures en vigueur sur le site (", siteName + ")", marginX + 5, ln);
             ln += 10;
-            doc.text(`• Par : ${executant}`, marginX + 5, ln);
+            addTextWithBoldValue(doc, "• Par : ", executant, marginX + 5, ln);
             ln += 10;
-            doc.text(`• De l'entreprise utilisatrice : ${userCompany}`, marginX + 5, ln);
+            addTextWithBoldValue(doc, "• De l'entreprise utilisatrice : ", userCompany, marginX + 5, ln);
             ln += 10;
-            doc.text(`• Lockbox : ${lockboxId}`, marginX + 5, ln);
+            addTextWithBoldValue(doc, "• Lockbox : ", lockboxId, marginX + 5, ln);
             ln += 10;
             doc.text(
                 `• S'engage à faire réaliser la mise en sécurité des différentes énergies et fluides susceptibles de présenter des risques dans le cadre des travaux prévus.`,
@@ -688,7 +741,7 @@ const generateAndSavePDF = (consData) => {
             ln += 10;
             doc.setFont("helvetica", "bold");
             doc.text("• Signature de l'exécuteur :", marginX + 5, ln);
-            addSignatureImage(doc, signerImg, marginX + 140, ln - 8, 80, 40);
+            addSignatureImage(doc, signerImg, marginX + 180, ln - 12, 100, 50);
             doc.setFontSize(FONT.BODY);
             
             currentY = execY + execH + 20;
@@ -707,16 +760,18 @@ const generateAndSavePDF = (consData) => {
             // Static labels for deconsignation info
             doc.setFont("helvetica", "normal");
             doc.setFontSize(FONT.BODY);
-            doc.text(
-                `Déconsignation demandée le : ${execDeconDate}`,
+            addTextWithBoldValue(
+                doc,
+                "Déconsignation demandée le : ",
+                execDeconDate,
                 marginX + 5,
                 currentY
             );
             currentY += 15;
-            
-            doc.text(`Zone concernée : ${zoneName}`, marginX + 5, currentY);
+
+            addTextWithBoldValue(doc, "Zone concernée : ", zoneName, marginX + 5, currentY);
             currentY += 15;
-            doc.text(`Équipement concerné : ${equipements}`, marginX + 5, currentY);
+            addTextWithBoldValue(doc, "Équipement concerné : ", equipements, marginX + 5, currentY);
             currentY += 15;
             doc.setFontSize(FONT.SMALL);
             
@@ -767,7 +822,7 @@ for (let i = 0; i < deconsColTitles.length; i++) {
         : (deconsData ? [deconsData] : []);
 
       // Get the first signature_demandeur from deconsRows
-const firstDeconsSignatureDemandeur = deconsRows.length > 0 ? deconsRows[0]?.signature_deconsignateur : undefined;
+const firstDeconsSignatureDemandeur = deconsRows.length > 0 ? (deconsRows[0]?.signature_deconsignateur || null) : null;
 // Fallback to the original executant
 
 
@@ -837,7 +892,7 @@ if (deconsRows.length > 0) {
         
         // Signature - from deconsignation part of blended data
         doc.rect(currentX, currentDeconsTableY + deconsRowIndex * deconsRowHeight, deconsColWidths[5], deconsRowHeight, "S");
-        addSignatureImage(doc, row.signature_demandeur, currentX + 2, currentDeconsTableY + deconsRowIndex * deconsRowHeight + 2, deconsColWidths[5] - 4, deconsRowHeight - 4);
+        addSignatureImage(doc, row.signature_deconsignateur, currentX + 2, currentDeconsTableY + deconsRowIndex * deconsRowHeight + 2, deconsColWidths[5] - 4, deconsRowHeight - 4);
         
         deconsRowIndex++;
     });
@@ -858,15 +913,19 @@ if (deconsRows.length > 0) {
             }
             
             // Final bottom block for déconsignation execution
+
+
+
+            //this one claude this one for deconsignation
             const deY = currentY;
-const deH = 100;
+const deH = 160;
 doc.rect(marginX, deY, usableWidth, deH, "S");
 
 let ln2 = deY + 15;
 doc.setFont("helvetica", "normal");
 doc.setFontSize(FONT.SMALL);
 
-doc.text(`Déconsignation exécutée le : ${execDeconDate}`, marginX + 5, ln2);
+addTextWithBoldValue(doc, "Déconsignation exécutée le : ", execDeconDate, marginX + 5, ln2);
 ln2 += 10;
 doc.text("• Selon les procédures en vigueur sur le site", marginX + 5, ln2);
 ln2 += 10;
@@ -875,11 +934,11 @@ const deconsignatorName = deconsRows.length > 0 && deconsRows[0]?.deconsignateur
     ? deconsRows[0].deconsignateur.name 
     : "";
 
-doc.text(`• Par : ${deconsignatorName}`, marginX + 5, ln2);
+addTextWithBoldValue(doc, "• Par : ", deconsignatorName, marginX + 5, ln2);
 ln2 += 10;
-doc.text(`• De l'entreprise utilisatrice : ${userCompany}`, marginX + 5, ln2);
+addTextWithBoldValue(doc, "• De l'entreprise utilisatrice : ", userCompany, marginX + 5, ln2);
 ln2 += 10;
-doc.text(`• Lockbox : ${lockboxId}`, marginX + 5, ln2);
+addTextWithBoldValue(doc, "• Lockbox : ", lockboxId, marginX + 5, ln2);
 ln2 += 10;
 doc.text(
     "• Atteste avoir réalisé une analyse préalable pour définir les modalités de levée de la mise en sécurité.",
@@ -891,14 +950,13 @@ ln2 += 15;
 doc.text("• Déclarant avoir informé la salle de contrôle", marginX + 5, ln2);
 ln2 += 10;
 doc.setFont("helvetica", "bold");
-doc.text("• Signature de l'exécuteur :", marginX + 5, ln2);
 
 // Get the deconsignator signature from blended data if available
 const deconsSignature = blendedDeconsData && blendedDeconsData.length > 0 
     ? blendedDeconsData[0].signature_deconsignateur || blendedDeconsData[0].signature_demandeur
     : signerImg;
 
-addSignatureImage(doc, firstDeconsSignatureDemandeur, marginX + 140, ln2 - 8, 80, 40);
+addSignatureImage(doc, firstDeconsSignatureDemandeur, marginX + 180, ln2 - 12, 100, 50);
 doc.setFontSize(FONT.BODY);
             
             return doc;
@@ -953,31 +1011,203 @@ doc.setFontSize(FONT.BODY);
     return data || [];
 };
 
+    // Helper function to get status info
+    const getStatusInfo = () => {
+        if (!consignations.length) return { bgColor: 'bg-gray-100', iconColor: 'text-gray-600', text: 'Aucune donnée' };
+        const status = consignations[0]?.status;
+        if (status === 'pending') {
+            return { bgColor: 'bg-orange-100', iconColor: 'text-orange-600', text: 'En attente de confirmation' };
+        }
+        return { bgColor: 'bg-green-100', iconColor: 'text-green-600', text: 'Consignations confirmées' };
+    };
+
+    const statusInfo = getStatusInfo();
+    const StatusIcon = consignations[0]?.status === 'pending' ? ExclamationTriangleIcon : ShieldCheckIcon;
+
+    // Get unique companies count
+    const uniqueCompanies = new Set(consignations.map(c => c.entreprises?.name)).size;
+
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
-            <div className="w-full max-w-lg bg-white rounded-xl shadow-lg p-8 mt-20">
-                <h1 className="text-3xl font-bold text-center mb-6">Détails de la consignation multiple</h1>
-                <ul>
-                    {consignations.map((consignation, index) => (
-                        <div className="flex justify-between items-center border-b border-gray-300 py-4" key={index}>
-                            <li key={index} className="mb-2">
-                                {console.log("Consignations:", consignation)}
-                                <span className="font-semibold">Entreprise:</span> {consignation.entreprises?.name || "N/A"}
-                            </li>
-                            <button className="bg-blue-500 text-white px-4 py-2 rounded mt-4" onClick={() => { handleMultiDetailsButton(consignation.id) }}>Voir détails</button>
-                        </div>
-                    ))}
-                </ul>
+        <div className="min-h-screen bg-gray-50 pt-20">
+            <div className={`${
+                isMobile ? 'px-4 py-6' : 'px-6 py-8'
+            } max-w-4xl mx-auto`}>
+                {/* Back Button */}
+                <div className="mb-6">
+                    <button
+                        onClick={() => navigate('/consignationList')}
+                        className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
+                    >
+                        <ArrowLeftIcon className="h-4 w-4" />
+                        <span className="text-sm font-medium">Retour à la liste</span>
+                    </button>
+                </div>
 
-                <div className="flex justify-between mt-4">
-                    <button className="bg-green-500 text-white px-4 py-2 rounded" onClick={() => handleAddConsignation()}>Ajouter une Consignation</button>
-                    <button className="bg-blue-500 text-white px-4 py-2 rounded" onClick={() => handlePrint()}>Imprimer</button>
+                {/* Main Content */}
+                <div className="space-y-6">
+                    {/* Header Card */}
+                    <Card className="shadow-md border-0 bg-white/70 backdrop-blur-sm">
+                        <CardHeader className="pb-4">
+                            <div className="flex items-center gap-4">
+                                <div className={`flex items-center justify-center w-12 h-12 ${statusInfo.bgColor} rounded-full`}>
+                                    <StatusIcon className={`h-6 w-6 ${statusInfo.iconColor}`} />
+                                </div>
+                                <div className="flex-1">
+                                    <CardTitle className="text-xl font-semibold text-gray-900">
+                                        Consignation Multiple
+                                    </CardTitle>
+                                    <p className="text-gray-600 mt-1">{statusInfo.text}</p>
+                                </div>
+                                <div className={`text-right ${
+                                    isMobile ? 'hidden' : 'block'
+                                }`}>
+                                    <div className="text-sm text-gray-500">
+                                        {consignations.length} intervention{consignations.length > 1 ? 's' : ''}
+                                    </div>
+                                    <div className="text-sm text-gray-500">
+                                        {uniqueCompanies} entreprise{uniqueCompanies > 1 ? 's' : ''}
+                                    </div>
+                                </div>
+                            </div>
 
-                    {(consignations[0]?.status === "pending") ? (
-                        <button className="bg-green-500 text-white px-4 py-2 rounded" onClick={() => handleConfirmation()}>Confirmer</button>
-                    ) : (
-                        <button className="bg-green-500/50 text-white px-4 py-2 rounded" disabled>Confirmé</button>
-                    )}
+                            {/* Mobile stats */}
+                            {isMobile && (
+                                <div className="flex justify-between mt-4 pt-4 border-t border-gray-200">
+                                    <div className="text-center">
+                                        <div className="text-lg font-semibold text-gray-900">{consignations.length}</div>
+                                        <div className="text-xs text-gray-500">Intervention{consignations.length > 1 ? 's' : ''}</div>
+                                    </div>
+                                    <div className="text-center">
+                                        <div className="text-lg font-semibold text-gray-900">{uniqueCompanies}</div>
+                                        <div className="text-xs text-gray-500">Entreprise{uniqueCompanies > 1 ? 's' : ''}</div>
+                                    </div>
+                                    {consignations[0]?.zones?.name && (
+                                        <div className="text-center">
+                                            <div className="text-sm font-medium text-gray-900">{consignations[0].zones.name}</div>
+                                            <div className="text-xs text-gray-500">Zone</div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </CardHeader>
+                    </Card>
+
+                    {/* Action Buttons */}
+                    <Card className="shadow-md border-0 bg-white/70 backdrop-blur-sm">
+                        <CardContent className="p-6">
+                            <div className={`grid gap-4 ${
+                                isMobile ? 'grid-cols-1' : 'grid-cols-3'
+                            }`}>
+                                <button
+                                    className={`flex items-center justify-center gap-2 px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all font-medium shadow-md hover:shadow-lg ${
+                                        isMobile ? 'h-12' : ''
+                                    }`}
+                                    onClick={handleAddConsignation}
+                                >
+                                    <PlusIcon className="h-5 w-5" />
+                                    {isMobile ? 'Ajouter' : 'Ajouter Consignation'}
+                                </button>
+
+                                <button
+                                    className={`flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-all font-medium shadow-md hover:shadow-lg ${
+                                        isMobile ? 'h-12' : ''
+                                    }`}
+                                    onClick={handlePrint}
+                                    disabled={printing}
+                                >
+                                    <PrinterIcon className="h-5 w-5" />
+                                    {printing ? 'Génération...' : (isMobile ? 'PDF' : 'Imprimer PDF')}
+                                </button>
+
+                                {consignations[0]?.status === "pending" ? (
+                                    <button
+                                        className={`flex items-center justify-center gap-2 px-4 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50 transition-all font-medium shadow-md hover:shadow-lg ${
+                                            isMobile ? 'h-12' : ''
+                                        }`}
+                                        onClick={handleConfirmation}
+                                        disabled={confirming}
+                                    >
+                                        <ClockIcon className="h-5 w-5" />
+                                        {confirming ? 'Confirmation...' : 'Confirmer'}
+                                    </button>
+                                ) : (
+                                    <div className={`flex items-center justify-center gap-2 px-4 py-3 bg-green-600 text-white rounded-lg shadow-md ${
+                                        isMobile ? 'h-12' : ''
+                                    }`}>
+                                        <CheckCircleIcon className="h-5 w-5" />
+                                        <span className="font-medium">Confirmé</span>
+                                    </div>
+                                )}
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    {/* Consignations List */}
+                    <Card className="shadow-md border-0 bg-white/70 backdrop-blur-sm">
+                        <CardHeader className="pb-4">
+                            <CardTitle className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                                <InformationCircleIcon className="h-5 w-5 text-blue-600" />
+                                Liste des Interventions
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            {consignations.map((consignation, index) => (
+                                <div key={consignation.id} className={`bg-blue-50 rounded-lg p-4 border border-blue-100 hover:bg-blue-100 transition-colors duration-200 hover:shadow-md`}>
+                                    <div className={`flex items-center justify-between gap-4 ${
+                                        isMobile ? 'flex-col' : ''
+                                    }`}>
+                                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                                            <div className="flex items-center justify-center w-8 h-8 bg-blue-100 rounded-full">
+                                                <span className="text-sm font-bold text-blue-600">{index + 1}</span>
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <h3 className="font-semibold text-blue-900 truncate">
+                                                    {consignation.entreprises?.name || "Entreprise non définie"}
+                                                </h3>
+                                                <div className="flex items-center gap-2 mt-1">
+                                                    <UserIcon className="h-3 w-3 text-blue-600" />
+                                                    <span className="text-sm text-blue-700">
+                                                        {consignation.demandeur?.name || "Demandeur non défini"}
+                                                    </span>
+                                                </div>
+                                                {consignation.designation_travaux && (
+                                                    <p className="text-xs text-blue-600 mt-1 line-clamp-2">
+                                                        {consignation.designation_travaux}
+                                                    </p>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        <div className={`flex items-center gap-3 ${
+                                            isMobile ? 'w-full justify-between mt-3' : 'flex-shrink-0'
+                                        }`}>
+                                            <div className="flex gap-2">
+                                                <Badge
+                                                    variant={consignation.status === 'pending' ? 'destructive' : 'default'}
+                                                    className="text-xs"
+                                                >
+                                                    {consignation.status === 'pending' ? 'En attente' : 'Confirmé'}
+                                                </Badge>
+                                                {consignation.cadenas_num && (
+                                                    <Badge variant="outline" className="text-xs">
+                                                        #{consignation.cadenas_num}
+                                                    </Badge>
+                                                )}
+                                            </div>
+
+                                            <button
+                                                className="flex items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all font-medium shadow-md hover:shadow-lg text-sm"
+                                                onClick={() => handleMultiDetailsButton(consignation.id)}
+                                            >
+                                                <EyeIcon className="h-4 w-4" />
+                                                {!isMobile && 'Détails'}
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </CardContent>
+                    </Card>
                 </div>
             </div>
         </div>

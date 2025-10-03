@@ -206,7 +206,8 @@ const ConsignationList = () => {
     {
       name: "   ",
       selector: (row) =>
-        (row.multi_consignation_id && ["pending", "confirmed"].includes(row.status) )? (
+        (row.multi_consignation_id && ["pending", "confirmed"].includes(row.status)  &&
+      row.count > 1) ?   (
           <span title="Consignation multiple" style={{ fontSize: "1.2rem", color: "#4caf50" }}>
           </span>
         ) : null,
@@ -250,7 +251,8 @@ const ConsignationList = () => {
           selector: (row) => row.entreprises?.name || "non-défini",
           cell: (row) =>
             row.multi_consignation_id &&
-            ["pending", "confirmed"].includes(row.status) ? (
+            ["pending", "confirmed"].includes(row.status) &&
+            row.count > 1 ?(
               <span
                 title="Consignation multiple"
                 style={{ fontSize: "1.2rem", color: "#4caf50" }}
@@ -395,7 +397,8 @@ const ConsignationList = () => {
     console.log(row.status);
     setSelectedRow(row);
     // If this is a grouped (multiple) record then navigate to the multi details page.
-    if (row.multi_consignation_id && ( row.status === "pending" || row.status === "confirmed" ) ) {
+    if (row.multi_consignation_id && ( row.status === "pending" || row.status === "confirmed" )  &&
+    row.count > 1) {  // ADD THIS CHECK
       navigate(`/multiconsdetails/${row.multi_consignation_id}`);
     } else {
       navigate(`/consignationdetails/${row.id}`);

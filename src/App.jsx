@@ -58,7 +58,7 @@ function App({ className, ...props }) {
 
 
 
-      <Route path="*" element={<Navigate to="/profile" />} />
+      <Route path="*" element={<Navigate to="/home" />} />
       {/* Add more routes as needed */}
     </Routes>
        </>

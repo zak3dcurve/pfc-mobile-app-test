@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Read(//c/Users/poste1/Desktop/pfc-front-mobile/**)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(grep:*)"
     ],
     "deny": [],
     "ask": []
