@@ -256,21 +256,35 @@ const { data: deconsRecords, error: deconsError } = await supabase
             console.log("Fetched deconsignation dataaaaaaaaaaaaaaaaaaaaa:");
 
     if (!singleConsign) return;
-  
+
     const fetchDecon = async () => {
-      const { data, error } = await supabase
+      const { data: decons, error } = await supabase
         .from("deconsignations")
-        .select("created_at")
+        .select(`
+          created_at,
+          signature_demandeur,
+          signature_deconsignateur,
+          entreprises:entreprises!entreprise_id(name),
+          demandeur:persons!deconsignations_demandeur_id_fkey(name),
+          deconsignateur:persons!deconsignateur_id(name)
+        `)
         .eq("consignation_id", singleConsign.id)
         .maybeSingle();
-  
-      if (!error) {
-        console.log("Fetched deconsignation dataaaaaaaaaaaaaaaaaaaaa:", data);
-        setDeconsignation(data || {});
+
+      if (!error && decons) {
+        console.log("Fetched deconsignation dataaaaaaaaaaaaaaaaaaaaa:", decons);
+        // Blend with consignation data
+        const blendedDecons = {
+          ...decons,
+          pdp: singleConsign.pdp,
+          designation_travaux: singleConsign.designation_travaux,
+          cadenas_num: singleConsign.cadenas_num
+        };
+        setDeconsignation(blendedDecons);
     }
 
       console.log("Fetched deconsignation data: hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh", deconsignation.signature_deconsignateur);
-      
+
     };
     fetchDecon();
   }, [singleConsign]);
@@ -1203,9 +1217,15 @@ doc.setFontSize(FONT.BODY);
           `)
           .eq("consignation_id", consignation.id)
           .single();
-        
+
         if (data) {
-          deconsData = data;
+          // Blend deconsignation data with consignation data for single consignations
+          deconsData = {
+            ...data,
+            pdp: consignation.pdp,
+            designation_travaux: consignation.designation_travaux,
+            cadenas_num: consignation.cadenas_num
+          };
         }
       }
       
