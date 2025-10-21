@@ -610,7 +610,7 @@ const generateAndSavePDF = (consData) => {
             
             // CONSIGNATION TABLE
             // Check if we need a new page for the table
-            const requiredRowHeight = 25;
+            const requiredRowHeight = 50;
             const estimatedTableHeight = (groupedConsignations?.length || 1) * requiredRowHeight + 30; // Header + margin
             
             if (currentY + estimatedTableHeight > pageHeight - marginY) {
@@ -619,55 +619,56 @@ const generateAndSavePDF = (consData) => {
             
             const tableY = currentY;
             const rowHeight = requiredRowHeight;
+            const headerHeight = 25;
             const colWidths = [100, 70, 40, 120, 80, 120];
             const colTitles = [
                 "Entreprise", "Demandeur", "N° PDP", "Description des travaux",
                 "N° de cadenas", "Signature"
             ];
-            
+
             // Draw table header
             let currentX = marginX;
             for (let i = 0; i < colTitles.length; i++) {
                 doc.setFont("helvetica", "bold");
-                doc.rect(currentX, tableY, colWidths[i], rowHeight, "S");
+                doc.rect(currentX, tableY, colWidths[i], headerHeight, "S");
                 doc.text(colTitles[i], currentX + 2, tableY + 15);
                 currentX += colWidths[i];
             }
-            
+
             // Determine rows data: if groupedConsignations exists then use it; otherwise, create one row from consData.
             const consignationRows = (groupedConsignations && groupedConsignations.length > 0)
                 ? groupedConsignations
                 : [consData];
-            
+
             // Draw table rows with better pagination
-            let consRowIndex = 1;
-            let currentTableY = tableY;
+            let consRowIndex = 0;
+            let currentTableY = tableY + headerHeight;
             
             consignationRows.forEach(row => {
                 // Check if we need a new page for this row
-                if (currentTableY + (consRowIndex + 1) * rowHeight > pageHeight - marginY) {
+                if (currentTableY + consRowIndex * rowHeight + rowHeight > pageHeight - marginY) {
                     // Add a new page
                     doc.addPage();
-                    
+
                     // Reset Y position to top of page
-                    currentTableY = marginY;
-                    
+                    currentTableY = marginY + headerHeight;
+
                     // Redraw the table header on the new page
                     currentX = marginX;
                     for (let i = 0; i < colTitles.length; i++) {
                         doc.setFont("helvetica", "bold");
-                        doc.rect(currentX, currentTableY, colWidths[i], rowHeight, "S");
-                        doc.text(colTitles[i], currentX + 2, currentTableY + 15);
+                        doc.rect(currentX, marginY, colWidths[i], headerHeight, "S");
+                        doc.text(colTitles[i], currentX + 2, marginY + 15);
                         currentX += colWidths[i];
                     }
-                    
+
                     // Reset row index for the new page
-                    consRowIndex = 1;
+                    consRowIndex = 0;
                 }
-                
+
                 // Now draw the row
                 currentX = marginX;
-                
+
                 // Enterprise
                 doc.setFont("helvetica", "normal");
                 doc.rect(currentX, currentTableY + consRowIndex * rowHeight, colWidths[0], rowHeight, "S");
@@ -796,7 +797,8 @@ const generateAndSavePDF = (consData) => {
             
 // DÉCONSIGNATION TABLE
 const deconsTableY = currentY;
-const deconsRowHeight = 25;
+const deconsRowHeight = 50;
+const deconsHeaderHeight = 25;
 const deconsColWidths = [100, 70, 40, 120, 80, 120];
 const deconsColTitles = [
     "Entreprise",
@@ -811,7 +813,7 @@ const deconsColTitles = [
 currentX = marginX;
 for (let i = 0; i < deconsColTitles.length; i++) {
     doc.setFont("helvetica", "bold");
-    doc.rect(currentX, deconsTableY, deconsColWidths[i], deconsRowHeight, "S");
+    doc.rect(currentX, deconsTableY, deconsColWidths[i], deconsHeaderHeight, "S");
     doc.text(deconsColTitles[i], currentX + 2, deconsTableY + 15);
     currentX += deconsColWidths[i];
 }
@@ -836,34 +838,34 @@ console.log("Deconsignation rows for PDF:", deconsRows);
 // Only proceed with table rows if we have data
 if (deconsRows.length > 0) {
     // Draw deconsignation table rows with improved pagination
-    let deconsRowIndex = 1;
-    let currentDeconsTableY = deconsTableY;
+    let deconsRowIndex = 0;
+    let currentDeconsTableY = deconsTableY + deconsHeaderHeight;
     
     deconsRows.forEach(row => {
         // Check if we need a new page for this row
-        if (currentDeconsTableY + (deconsRowIndex + 1) * deconsRowHeight > pageHeight - marginY) {
+        if (currentDeconsTableY + deconsRowIndex * deconsRowHeight + deconsRowHeight > pageHeight - marginY) {
             // Add a new page
             doc.addPage();
-            
+
             // Reset Y position to top of page
-            currentDeconsTableY = marginY;
-            
+            currentDeconsTableY = marginY + deconsHeaderHeight;
+
             // Redraw the table header on the new page
             currentX = marginX;
             for (let i = 0; i < deconsColTitles.length; i++) {
                 doc.setFont("helvetica", "bold");
-                doc.rect(currentX, currentDeconsTableY, deconsColWidths[i], deconsRowHeight, "S");
-                doc.text(deconsColTitles[i], currentX + 2, currentDeconsTableY + 15);
+                doc.rect(currentX, marginY, deconsColWidths[i], deconsHeaderHeight, "S");
+                doc.text(deconsColTitles[i], currentX + 2, marginY + 15);
                 currentX += deconsColWidths[i];
             }
-            
+
             // Reset row index for the new page
-            deconsRowIndex = 1;
+            deconsRowIndex = 0;
         }
-        
+
         // Now draw the row
         currentX = marginX;
-        
+
         // Enterprise - from blended data
         doc.setFont("helvetica", "normal");
         doc.rect(currentX, currentDeconsTableY + deconsRowIndex * deconsRowHeight, deconsColWidths[0], deconsRowHeight, "S");
