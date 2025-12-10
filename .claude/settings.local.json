@@ -3,7 +3,21 @@
     "allow": [
       "Read(//c/Users/poste1/Desktop/pfc-front-mobile/**)",
       "Bash(find:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(npm install:*)",
+      "Bash(cat:*)",
+      "Bash(sed:*)",
+      "Bash(adb devices:*)",
+      "Bash(adb shell:*)",
+      "Bash(npm run build:*)",
+      "Bash(npx cap:*)",
+      "Bash(gradlew.bat assembleDebug:*)",
+      "Bash(./gradlew assembleDebug:*)",
+      "Bash(set JAVA_HOME=C:Program FilesAndroidAndroid Studiojbr)",
+      "Bash(set PATH=%JAVA_HOME%bin)",
+      "Bash(%PATH%)",
+      "Bash(cmd //c \"set JAVA_HOME=C:\\Program Files\\Android\\Android Studio\\jbr && set PATH=%JAVA_HOME%\\bin;%PATH% && gradlew.bat assembleDebug\")",
+      "Bash(cmd //c:*)"
     ],
     "deny": [],
     "ask": []

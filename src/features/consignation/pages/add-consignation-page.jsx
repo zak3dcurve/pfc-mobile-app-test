@@ -4,11 +4,94 @@ import SignaturePad from "signature_pad";
 import { supabase } from "@/features/auth/utils/supabase-client";
 import { useNavigate } from "react-router-dom";
 import CreatableSelect from "react-select/creatable";
-import Select from "react-select";
+import Select, { components } from "react-select";
 import { useAuth } from "@/features/auth/utils/auth-context";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import {
+  CalendarIcon,
+  ClockIcon,
+  UserIcon,
+  BuildingOfficeIcon,
+  MapPinIcon,
+  WrenchScrewdriverIcon,
+  KeyIcon,
+  LockClosedIcon,
+  CheckCircleIcon,
+  ArrowLeftIcon,
+  ArrowRightIcon,
+  ShieldCheckIcon,
+  CogIcon,
+  InformationCircleIcon,
+  PencilSquareIcon,
+  DocumentTextIcon,
+  ClipboardDocumentListIcon,
+  TagIcon,
+  PaperAirplaneIcon,
+  CalendarDaysIcon,
+  UserGroupIcon,
+  IdentificationIcon,
+  HandRaisedIcon,
+  DocumentCheckIcon,
+  ExclamationCircleIcon,
+  BoltIcon,
+  Bars3BottomLeftIcon,
+  BeakerIcon,
+  FireIcon
+} from "@heroicons/react/24/outline";
 
-// Fonction d'aide pour obtenir la date/heure locale formatée
+// Icons mapping for consignation types
+const consignationTypeIcons = {
+  1: BoltIcon,           // électrique
+  2: BeakerIcon,         // fluide thermique, hydraulique, frigorigène, gaz, produit dangereux
+  3: CogIcon,            // machine risque mécanique
+};
+
+const consignationTypeColors = {
+  1: { bg: 'bg-yellow-100', text: 'text-yellow-600' },
+  2: { bg: 'bg-blue-100', text: 'text-blue-600' },
+  3: { bg: 'bg-purple-100', text: 'text-purple-600' },
+};
+
+// Custom Option component for consignation types with icons
+const ConsignationTypeOption = (props) => {
+  const { data, isSelected, isFocused } = props;
+  const IconComponent = consignationTypeIcons[data.value] || TagIcon;
+  const colors = consignationTypeColors[data.value] || { bg: 'bg-gray-100', text: 'text-gray-600' };
+  
+  return (
+    <components.Option {...props}>
+      <div className="flex items-center gap-3 py-1">
+        <div className={`flex items-center justify-center w-8 h-8 ${colors.bg} rounded-full flex-shrink-0`}>
+          <IconComponent className={`h-4 w-4 ${colors.text}`} />
+        </div>
+        <span className={`${isSelected ? 'font-medium' : ''}`}>{data.label}</span>
+      </div>
+    </components.Option>
+  );
+};
+
+// Custom MultiValue component to show icons in selected values
+const ConsignationTypeMultiValue = (props) => {
+  const { data } = props;
+  const IconComponent = consignationTypeIcons[data.value] || TagIcon;
+  const colors = consignationTypeColors[data.value] || { bg: 'bg-gray-100', text: 'text-gray-600' };
+  
+  return (
+    <components.MultiValue {...props}>
+      <div className="flex items-center gap-1.5">
+        <div className={`flex items-center justify-center w-5 h-5 ${colors.bg} rounded-full`}>
+          <IconComponent className={`h-3 w-3 ${colors.text}`} />
+        </div>
+        <span>{data.label}</span>
+      </div>
+    </components.MultiValue>
+  );
+};
+
+// Helper function to get formatted local datetime
 const getFormattedLocal = () => {
   const now = new Date();
   const pad = (n) => String(n).padStart(2, "0");
@@ -20,7 +103,7 @@ const getFormattedLocal = () => {
   return `${year}-${month}-${day}T${hours}:${minutes}`;
 };
 
-// Schémas Zod pour les champs texte non modifiables (pour l'étape 1 uniquement dans ce cas)
+// Zod schemas for validation
 const step1Schema = z.object({
   designation_travaux: z.string().min(1, "La désignation des travaux est requise"),
   equipements: z.string().optional(),
@@ -29,17 +112,43 @@ const step1Schema = z.object({
   lockbox: z.string().optional(),
 });
 
-// Ces schémas restent vides car la validation est gérée via l'état
 const step2Schema = z.object({});
 const step3Schema = z.object({});
+
+// Button Loading Component matching ConsignationDetails
+const ButtonSpinner = ({ children, loading, loadingText, ...props }) => {
+  return (
+    <button
+      {...props}
+      disabled={loading || props.disabled}
+      className={`${props.className} ${loading ? 'cursor-not-allowed' : ''}`}
+    >
+      {loading ? (
+        <div className="flex items-center justify-center gap-2">
+          <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+          {loadingText || "Chargement..."}
+        </div>
+      ) : (
+        children
+      )}
+    </button>
+  );
+};
+
+// Step configuration for progress indicator
+const stepConfig = [
+  { id: 1, title: "Informations", icon: InformationCircleIcon, color: "blue" },
+  { id: 2, title: "Consignateur", icon: UserIcon, color: "green" },
+  { id: 3, title: "Demandeur", icon: UserGroupIcon, color: "purple" },
+  { id: 4, title: "Confirmation", icon: DocumentCheckIcon, color: "indigo" },
+];
 
 const AddConsignation = () => {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
-
   const { user, role, site, entreprise } = useAuth();
 
-  // Données principales du formulaire pour les champs texte et les signatures
+  // Form data state
   const [formData, setFormData] = useState({
     date_consignation: getFormattedLocal(),
     designation_travaux: "",
@@ -58,7 +167,7 @@ const AddConsignation = () => {
     signature_attestation: "",
   });
 
-  // Tableaux d'options récupérées depuis Supabase (format { value, label })
+  // Options arrays from Supabase
   const [sites, setSites] = useState([]);
   const [zones, setZones] = useState([]);
   const [consignateurs, setConsignateurs] = useState([]);
@@ -68,7 +177,7 @@ const AddConsignation = () => {
   const [entreprisePersons, setEntreprisePersons] = useState([]);
   const [siteZones, setSiteZones] = useState([]);
 
-  // États séparés pour les champs sélectifs créables
+  // Selected values states
   const [selectedSite, setSelectedSite] = useState(null);
   const [selectedZone, setSelectedZone] = useState(null);
   const [selectedConsignateur, setSelectedConsignateur] = useState(null);
@@ -80,21 +189,23 @@ const AddConsignation = () => {
   const [currentStep, setCurrentStep] = useState(1);
   const [errors, setErrors] = useState({});
 
+  // Signature pad refs
   const sigPadConsignateur = useRef(null);
   const sigPadDemandeur = useRef(null);
   const sigPadAttestation = useRef(null);
   const signaturePadConsignateur = useRef(null);
   const signaturePadDemandeur = useRef(null);
   const signaturePadAttestation = useRef(null);
-  
 
-
+  // Dialog states
   const [showTimeDialog, setShowTimeDialog] = useState(false);
-const [datetimeValue, setDatetimeValue] = useState(getFormattedLocal());
+  const [datetimeValue, setDatetimeValue] = useState(getFormattedLocal());
 
+  // Loading states
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isNavigating, setIsNavigating] = useState(false);
 
-const [consigne_pour_ee, setConsignePourEE] = useState(true);
-  // Récupérer les options depuis Supabase
+  // Fetch options from Supabase
   useEffect(() => {
     const fetchData = async () => {
       const { data: siteData } = await supabase.from("sites").select("id, name, zones(id, name)");
@@ -104,48 +215,22 @@ const [consigne_pour_ee, setConsignePourEE] = useState(true);
       const { data: entrepriseData } = await supabase.from("entreprises").select("id, name, persons(id, name)");
       const { data: types_consignationData } = await supabase.from("types_consignation").select("id, type_name");
 
-    
-      setSites(
-        (siteData || []).map((site) => ({ value: site.id, label: site.name, zones: site.zones }))
-      );
-      setZones(
-        (zoneData || []).map((zone) => ({ value: zone.id, label: zone.name }))
-      );
-      setConsignateurs(
-        (consignateurData || []).map((cons) => ({
-          value: cons.id,
-          label: cons.name,
-          entreprise_id: cons.entreprise_id,
-        }))
-      );
-      setDemandeurs(
-        (demandeurData || []).map((dem) => ({ value: dem.id, label: dem.name }))
-      );
-      setEntreprises(
-        (entrepriseData || []).map((ent) => ({
-          value: ent.id,
-          label: ent.name,
-          persons: ent.persons,
-        }))
-      );
-      setTypes_consignations(
-        (types_consignationData || []).map((tyc) => ({ value: tyc.id, label: tyc.type_name }))
-      );
+      setSites((siteData || []).map((site) => ({ value: site.id, label: site.name, zones: site.zones })));
+      setZones((zoneData || []).map((zone) => ({ value: zone.id, label: zone.name })));
+      setConsignateurs((consignateurData || []).map((cons) => ({ value: cons.id, label: cons.name, entreprise_id: cons.entreprise_id })));
+      setDemandeurs((demandeurData || []).map((dem) => ({ value: dem.id, label: dem.name })));
+      setEntreprises((entrepriseData || []).map((ent) => ({ value: ent.id, label: ent.name, persons: ent.persons })));
+      setTypes_consignations((types_consignationData || []).map((tyc) => ({ value: tyc.id, label: tyc.type_name })));
     };
-
     fetchData();
   }, []);
 
-  // Lorsqu'une entreprise est sélectionnée en étape 2, mettre à jour la liste des personnes pour cette entreprise
+  // Update entreprise persons when entreprise is selected
   useEffect(() => {
     if (selectedEntreprise) {
-      const enterprise = entreprises.find(
-        (ent) => ent.value === selectedEntreprise.value
-      );
+      const enterprise = entreprises.find((ent) => ent.value === selectedEntreprise.value);
       if (enterprise && enterprise.persons) {
-        setEntreprisePersons(
-          enterprise.persons.map((p) => ({ value: p.id, label: p.name }))
-        );
+        setEntreprisePersons(enterprise.persons.map((p) => ({ value: p.id, label: p.name })));
       } else {
         setEntreprisePersons([]);
       }
@@ -156,13 +241,9 @@ const [consigne_pour_ee, setConsignePourEE] = useState(true);
 
   useEffect(() => {
     if (selectedEntrepriseUtilisatrice) {
-      const enterprise = entreprises.find(
-        (ent) => ent.value === selectedEntrepriseUtilisatrice.value
-      );
+      const enterprise = entreprises.find((ent) => ent.value === selectedEntrepriseUtilisatrice.value);
       if (enterprise && enterprise.persons) {
-        setEntreprisePersons(
-          enterprise.persons.map((p) => ({ value: p.id, label: p.name }))
-        );
+        setEntreprisePersons(enterprise.persons.map((p) => ({ value: p.id, label: p.name })));
       } else {
         setEntreprisePersons([]);
       }
@@ -171,7 +252,7 @@ const [consigne_pour_ee, setConsignePourEE] = useState(true);
     }
   }, [selectedEntrepriseUtilisatrice, entreprises]);
 
-  // Pour les techniciens, auto-sélectionner l'entreprise utilisateur
+  // Auto-select for technicians
   useEffect(() => {
     if (role === "technicien" && entreprise && entreprises.length > 0) {
       const matchingEntreprise = entreprises.find((e) => e.value === entreprise.id);
@@ -181,14 +262,12 @@ const [consigne_pour_ee, setConsignePourEE] = useState(true);
     }
   }, [role, entreprise, entreprises]);
 
-  // Vider le consignateur lorsque l'entreprise utilisateur change
   useEffect(() => {
     if (selectedConsignateur) {
       setSelectedConsignateur(null);
     }
   }, [selectedEntrepriseUtilisatrice]);
 
-  // Vider le demandeur lorsque l'entreprise change
   useEffect(() => {
     if (selectedConsignateur && !formData.consigne_pour_moi) {
       setSelectedDemandeur(null);
@@ -217,7 +296,6 @@ const [consigne_pour_ee, setConsignePourEE] = useState(true);
     }
   }, [selectedSite, sites]);
 
-  // Lorsque "consigné pour moi" est coché, définir automatiquement le demandeur comme étant le consignateur.
   useEffect(() => {
     if (formData.consigne_pour_moi && selectedConsignateur && selectedEntrepriseUtilisatrice) {
       setSelectedDemandeur(selectedConsignateur);
@@ -225,20 +303,17 @@ const [consigne_pour_ee, setConsignePourEE] = useState(true);
     }
   }, [formData.consigne_pour_moi, selectedConsignateur, selectedEntrepriseUtilisatrice]);
 
-  // Setup signature pads with responsive sizing
+  // Setup signature pads
   const setupSignaturePad = (canvasRef, signaturePadRef) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-
     const container = canvas.parentElement;
     const containerWidth = container.offsetWidth;
     const canvasHeight = isMobile ? 120 : 160;
-
     canvas.width = containerWidth - 4;
     canvas.height = canvasHeight;
     canvas.style.width = `${containerWidth - 4}px`;
     canvas.style.height = `${canvasHeight}px`;
-
     signaturePadRef.current = new SignaturePad(canvas, {
       backgroundColor: 'rgba(255,255,255,0)',
       velocityFilterWeight: 0.7,
@@ -248,7 +323,6 @@ const [consigne_pour_ee, setConsignePourEE] = useState(true);
     });
   };
 
-  // Initialisation de SignaturePad pour le canvas concerné
   useEffect(() => {
     if (currentStep === 2 && sigPadConsignateur.current) {
       setupSignaturePad(sigPadConsignateur, signaturePadConsignateur);
@@ -261,7 +335,6 @@ const [consigne_pour_ee, setConsignePourEE] = useState(true);
     }
   }, [currentStep, isMobile]);
 
-  // Gestionnaire de changement des inputs
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
     setFormData((prev) => ({
@@ -270,7 +343,6 @@ const [consigne_pour_ee, setConsignePourEE] = useState(true);
     }));
   };
 
-  // Validation de l'étape actuelle
   const validateStep = (step) => {
     let newErrors = {};
 
@@ -295,25 +367,18 @@ const [consigne_pour_ee, setConsignePourEE] = useState(true);
       if (!signaturePadConsignateur.current || signaturePadConsignateur.current.isEmpty()) {
         newErrors.signature_consignateur = ["La signature est requise"];
       }
-      // New validation for "Informer la salle de contrôle"
-  if (!formData.info_salle_controle) {
-    newErrors.info_salle_controle = ["Informer la salle de contrôle est obligatoire"];
-  }
-    } 
-    
-    
-    else if (step === 3) {
-      // Validate selection fields only when consigne_pour_moi is false
+      if (!formData.info_salle_controle) {
+        newErrors.info_salle_controle = ["Informer la salle de contrôle est obligatoire"];
+      }
+    } else if (step === 3) {
       if (!formData.consigne_pour_moi) {
         if (!selectedDemandeur) newErrors.demandeur_id = ["Le demandeur est requis"];
         if (!selectedEntreprise) newErrors.entreprise_id = ["L'entreprise est requise"];
       }
-      // Always validate the demandeur signature
       if (!signaturePadDemandeur.current || signaturePadDemandeur.current.isEmpty()) {
         newErrors.signature_demandeur = ["La signature est requise"];
       }
-    }else if (step === 4) {
-      
+    } else if (step === 4) {
       if (!signaturePadAttestation.current || signaturePadAttestation.current.isEmpty()) {
         newErrors.signature_attestation = ["La signature est requise"];
       }
@@ -323,392 +388,30 @@ const [consigne_pour_ee, setConsignePourEE] = useState(true);
     return Object.keys(newErrors).length === 0;
   };
 
-// Navigation between the steps.
-const handleNextStep = () => {
-  if (validateStep(currentStep)) {
-    // If we're on step 2 and "Consigné pour moi" is checked,
-    // jump directly to step 4 (skip step 3)
-    if (currentStep === 2 && formData.consigne_pour_moi) {
-      setCurrentStep(4);
-    } else {
-      setCurrentStep(currentStep + 1);
+  const handleNextStep = () => {
+    if (validateStep(currentStep)) {
+      if (currentStep === 2 && formData.consigne_pour_moi) {
+        setCurrentStep(4);
+      } else {
+        setCurrentStep(currentStep + 1);
+      }
     }
-  }
-};
+  };
 
-const handlePreviousStep = () => {
-  // If we're on step 4 and "Consigné pour moi" is checked,
-  // go back directly to step 2 (skipping step 3)
-  if (currentStep === 4 && formData.consigne_pour_moi) {
-    setCurrentStep(2);
-  } else {
-    setCurrentStep(currentStep - 1);
-  }
-};
+  const handlePreviousStep = () => {
+    if (currentStep === 4 && formData.consigne_pour_moi) {
+      setCurrentStep(2);
+    } else {
+      setCurrentStep(currentStep - 1);
+    }
+  };
 
   const handleReturn = () => {
     navigate(-1);
   };
 
-  // Soumission finale du formulaire
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-
-
-    if (!validateStep(4)) {
-      return; // Prevent submission if validation fails
-    }
-
-    
-    // Traitement pour le site
-    let finalSite = selectedSite;
-    if (selectedSite && selectedSite.__isNew__) {
-      const { data, error } = await supabase
-        .from("sites")
-        .insert({ name: selectedSite.label })
-        .select();
-      if (error) console.error("Erreur lors de l'insertion du nouveau site :", error);
-      else {
-        finalSite = { value: Number(data[0].id), label: data[0].name };
-        setSites((prev) => [...prev, finalSite]);
-      }
-    }
-
-    // Traitement pour la zone
-    let finalZone = selectedZone;
-    if (selectedZone && selectedZone.__isNew__) {
-      const { data, error } = await supabase
-        .from("zones")
-        .insert({ name: selectedZone.label, site_id: selectedSite ? Number(selectedSite.value) : null })
-        .select();
-      if (error) console.error("Erreur lors de l'insertion de la nouvelle zone :", error);
-      else {
-        finalZone = { value: Number(data[0].id), label: data[0].name };
-        setZones((prev) => [...prev, finalZone]);
-      }
-    }
-
-    // Traitement pour le consignateur
-    let finalConsignateur = selectedConsignateur;
-    if (selectedConsignateur && selectedConsignateur.__isNew__) {
-      const newPerson = { name: selectedConsignateur.label };
-      if (selectedEntrepriseUtilisatrice) {
-        newPerson.entreprise_id = Number(selectedEntrepriseUtilisatrice.value);
-      }
-      const { data, error } = await supabase.from("persons").insert(newPerson).select();
-      if (error) console.error("Erreur lors de l'insertion du nouveau consignateur :", error);
-      else {
-        finalConsignateur = { value: Number(data[0].id), label: data[0].name };
-        setConsignateurs((prev) => [...prev, finalConsignateur]);
-      }
-    }
-
-// Process for the entreprise (from step 3)
-let finalEntreprise = selectedEntreprise;
-if (selectedEntreprise && selectedEntreprise.__isNew__) {
-  const { data, error } = await supabase
-    .from("entreprises")
-    .insert({ name: selectedEntreprise.label })
-    .select();
-  if (error) console.error("Erreur lors de l'insertion de la nouvelle entreprise :", error);
-  else {
-    finalEntreprise = { value: Number(data[0].id), label: data[0].name };
-    setEntreprises((prev) => [...prev, finalEntreprise]);
-  }
-}
-
-// Process for the demandeur (which depends on the entreprise)
-let finalDemandeur = selectedDemandeur;
-if (selectedDemandeur && selectedDemandeur.__isNew__) {
-  const newPerson = { name: selectedDemandeur.label };
-  // Use the persisted entreprise value (finalEntreprise) here
-  if (finalEntreprise) {
-    newPerson.entreprise_id = Number(finalEntreprise.value);
-  }
-  const { data, error } = await supabase.from("persons").insert(newPerson).select();
-  if (error) console.error("Erreur lors de l'insertion du nouveau demandeur :", error);
-  else {
-    finalDemandeur = { value: Number(data[0].id), label: data[0].name };
-    setDemandeurs((prev) => [...prev, finalDemandeur]);
-  }
-}
-
-    let finalEntrepriseUtilisatrice = selectedEntrepriseUtilisatrice;
-
-
-    const fullDateTime = appendTimezoneOffset(formData.date_consignation);
-
- // Constructing the final payload.
- const updatedFormData = {
-  ...formData,
-  date_consignation: fullDateTime,
-  entreprise_utilisatrice_id: finalEntrepriseUtilisatrice ? Number(finalEntrepriseUtilisatrice.value) : "",
-  site_id: finalSite ? Number(finalSite.value) : "",
-  zone_id: finalZone ? Number(finalZone.value) : "",
-  consignateur_id: finalConsignateur ? Number(finalConsignateur.value) : "",
-  demandeur_id: finalDemandeur ? Number(finalDemandeur.value) : "",
-  entreprise_id: finalEntreprise ? Number(finalEntreprise.value) : "",
-  signature_consignateur:
-    signaturePadConsignateur.current && !signaturePadConsignateur.current.isEmpty()
-      ? signaturePadConsignateur.current.toDataURL()
-      : "",
-  // If "consigné pour moi" is true, use the consignateur signature
-  signature_demandeur: formData.consigne_pour_moi
-    ? signaturePadConsignateur.current && !signaturePadConsignateur.current.isEmpty()
-      ? signaturePadConsignateur.current.toDataURL()
-      : ""
-    : signaturePadDemandeur.current && !signaturePadDemandeur.current.isEmpty()
-    ? signaturePadDemandeur.current.toDataURL()
-    : "",
-  signature_attestation:
-    signaturePadAttestation.current && !signaturePadAttestation.current.isEmpty()
-      ? signaturePadAttestation.current.toDataURL()
-      : "",
-  created_by: user.id,
-  updated_by: user.id,
-};
-
-    // Retirer le champ types_consignation si non utilisé
-    const { types_consignation, consigne_pour_ee, ...dataToInsert } = updatedFormData;
-
-    const { data, error } = await supabase.from("consignations").insert([dataToInsert]).select();
-    if (error) {
-      console.error("Erreur lors de l'insertion de la consignation :", error);
-      console.error("Données tentées :", dataToInsert);
-      return;
-    }
-
-    console.log("Consignation insérée avec succès !", dataToInsert);
-    navigate("/home");
-
-    if (selectedTypesconsignations && selectedTypesconsignations.length > 0) {
-      const consignationId = data[0].id;
-      const junctionInserts = selectedTypesconsignations.map((typeId) => ({
-        cons_id: consignationId,
-        typ_cons_id: typeId,
-      }));
-
-      const { data: junctionData, error: junctionError } = await supabase
-        .from("consignation_types_junction")
-        .insert(junctionInserts);
-
-      if (junctionError) {
-        console.error("Erreur lors de l'insertion dans la table de jonction :", junctionError);
-      } else {
-        console.log("Enregistrements de jonction insérés avec succès :", junctionData);
-      }
-    }
-  };
-
-  // Fonctions pour effacer les signatures
-  const clearSignatureConsignateur = () => {
-    if (signaturePadConsignateur.current) {
-      signaturePadConsignateur.current.clear();
-    }
-    if (isMobile && navigator.vibrate) {
-      navigator.vibrate(50);
-    }
-  };
-
-  const clearSignatureDemandeur = () => {
-    if (signaturePadDemandeur.current) {
-      signaturePadDemandeur.current.clear();
-    }
-    if (isMobile && navigator.vibrate) {
-      navigator.vibrate(50);
-    }
-  };
-
-  const clearSignatureAttestation = () => {
-    if (signaturePadAttestation.current) {
-      signaturePadAttestation.current.clear();
-    }
-    if (isMobile && navigator.vibrate) {
-      navigator.vibrate(50);
-    }
-  };
-
-
-
-
-
-
-
-  //*planified handler  *********************************************************************************************************//
-
-
-
-  const handlePlanifiedClick = (e) => {
-    e.preventDefault();
-    // Minimal validation – adjust as needed:
-    if (!selectedSite || !selectedZone || !selectedEntreprise) {
-      // Optionally set error messages here
-      return;
-    }
-    setShowTimeDialog(true);
-  };
-  const handleDatetimeConfirm = async () => {
-    const newDatetime = datetimeValue; // get the selected full datetime
-    // Update state (this update is async)
-    setFormData((prev) => ({ ...prev, date_consignation: newDatetime }));
-    setShowTimeDialog(false);
-    // Instead of relying on formData, pass newDatetime directly
-    await submitPlanified(newDatetime);
-    navigate("/consignationplanified");
-  };
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-  const submitPlanified = async (newDatetime) => {
-    // Validate only the minimal required fields
-    let newErrors = {};
-    if (!selectedSite) newErrors.site_id = ["Le site est requis"];
-    if (!selectedZone) newErrors.zone_id = ["La zone est requis"];
-    if (!selectedEntreprise) newErrors.entreprise_id = ["L'entreprise est requise"];
-    if (Object.keys(newErrors).length > 0) {
-      setErrors(newErrors);
-      return;
-    }
-    
-    // Use the passed datetime if provided; otherwise, use formData.date_consignation
-    const finalDate = newDatetime || formData.date_consignation;
-    
-    // Process the site
-    let finalSite = selectedSite;
-    if (selectedSite && selectedSite.__isNew__) {
-      const { data, error } = await supabase
-        .from("sites")
-        .insert({ name: selectedSite.label })
-        .select();
-      if (error) console.error("Erreur lors de l'insertion du nouveau site :", error);
-      else {
-        finalSite = { value: Number(data[0].id), label: data[0].name };
-        setSites((prev) => [...prev, finalSite]);
-      }
-    }
-    
-    // Process the zone
-    let finalZone = selectedZone;
-    if (selectedZone && selectedZone.__isNew__) {
-      const { data, error } = await supabase
-        .from("zones")
-        .insert({ name: selectedZone.label, site_id: selectedSite ? Number(selectedSite.value) : null })
-        .select();
-      if (error) console.error("Erreur lors de l'insertion de la nouvelle zone :", error);
-      else {
-        finalZone = { value: Number(data[0].id), label: data[0].name };
-        setZones((prev) => [...prev, finalZone]);
-      }
-    }
-    
-    // Process the consignateur
-    let finalConsignateur = selectedConsignateur;
-    if (selectedConsignateur && selectedConsignateur.__isNew__) {
-      const newPerson = { name: selectedConsignateur.label };
-      if (selectedEntrepriseUtilisatrice) {
-        newPerson.entreprise_id = Number(selectedEntrepriseUtilisatrice.value);
-      }
-      const { data, error } = await supabase.from("persons").insert(newPerson).select();
-      if (error) console.error("Erreur lors de l'insertion du nouveau consignateur :", error);
-      else {
-        finalConsignateur = { value: Number(data[0].id), label: data[0].name };
-        setConsignateurs((prev) => [...prev, finalConsignateur]);
-      }
-    }
-    
-    // Process the entreprise (from step 3)
-    let finalEntreprise = selectedEntreprise;
-    if (selectedEntreprise && selectedEntreprise.__isNew__) {
-      const { data, error } = await supabase.from("entreprises").insert({ name: selectedEntreprise.label }).select();
-      if (error) console.error("Erreur lors de l'insertion de la nouvelle entreprise :", error);
-      else {
-        finalEntreprise = { value: Number(data[0].id), label: data[0].name };
-        setEntreprises((prev) => [...prev, finalEntreprise]);
-      }
-    }
-    
-    // Process the demandeur (which depends on the entreprise)
-    let finalDemandeur = selectedDemandeur;
-    if (selectedDemandeur && selectedDemandeur.__isNew__) {
-      const newPerson = { name: selectedDemandeur.label };
-      if (finalEntreprise) {
-        newPerson.entreprise_id = Number(finalEntreprise.value);
-      }
-      const { data, error } = await supabase.from("persons").insert(newPerson).select();
-      if (error) console.error("Erreur lors de l'insertion du nouveau demandeur :", error);
-      else {
-        finalDemandeur = { value: Number(data[0].id), label: data[0].name };
-        setDemandeurs((prev) => [...prev, finalDemandeur]);
-      }
-    }
-    
-    // Build the payload (omitting demandeur fields) and force status to "planified"
-    const updatedFormData = {
-      ...formData,
-      date_consignation: finalDate, // Use the finalDate from above
-      entreprise_utilisatrice_id: selectedEntrepriseUtilisatrice ? Number(selectedEntrepriseUtilisatrice.value) : "",
-      site_id: finalSite ? Number(finalSite.value) : "",
-      zone_id: finalZone ? Number(finalZone.value) : "",
-      consignateur_id: finalConsignateur ? Number(finalConsignateur.value) : "",
-      entreprise_id: finalEntreprise ? Number(finalEntreprise.value) : "",
-      signature_consignateur:
-        signaturePadConsignateur.current && !signaturePadConsignateur.current.isEmpty()
-          ? signaturePadConsignateur.current.toDataURL()
-          : "",
-      // Omit demandeur fields
-      signature_demandeur: "",
-      signature_attestation:
-        signaturePadAttestation.current && !signaturePadAttestation.current.isEmpty()
-          ? signaturePadAttestation.current.toDataURL()
-          : "",
-      status: "planified",
-      created_by: user.id,
-      updated_by: user.id,
-    };
-    
-    const { types_consignation , consigne_pour_ee , ...dataToInsert } = updatedFormData;
-    const { data, error } = await supabase.from("consignations").insert([dataToInsert]).select();
-    if (error) {
-      console.error("Erreur lors de l'insertion de la consignation planifiée :", error);
-      return;
-    }
-    console.log("Consignation planifiée insérée avec succès !", dataToInsert);
-    navigate("/consignationplanified");
-    
-    // (Optional) Process types_consignations if needed.
-  };
-
-
-
-
-
-
-
-
-
-
   const appendTimezoneOffset = (localDateTimeString) => {
-    // Create a Date object using the local date-time string.
     const localDate = new Date(localDateTimeString);
-    // Get the dynamic offset.
     const offsetMinutes = -localDate.getTimezoneOffset();
     const pad = (n) => String(n).padStart(2, "0");
     const sign = offsetMinutes >= 0 ? "+" : "-";
@@ -717,695 +420,1174 @@ if (selectedDemandeur && selectedDemandeur.__isNew__) {
     return `${localDateTimeString}${sign}${offsetHours}:${offsetRemMinutes}`;
   };
 
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!validateStep(4)) return;
 
+    setIsSubmitting(true);
 
+    try {
+      // Process site
+      let finalSite = selectedSite;
+      if (selectedSite && selectedSite.__isNew__) {
+        const { data, error } = await supabase.from("sites").insert({ name: selectedSite.label }).select();
+        if (!error) {
+          finalSite = { value: Number(data[0].id), label: data[0].name };
+          setSites((prev) => [...prev, finalSite]);
+        }
+      }
 
+      // Process zone
+      let finalZone = selectedZone;
+      if (selectedZone && selectedZone.__isNew__) {
+        const { data, error } = await supabase.from("zones").insert({ name: selectedZone.label, site_id: selectedSite ? Number(selectedSite.value) : null }).select();
+        if (!error) {
+          finalZone = { value: Number(data[0].id), label: data[0].name };
+          setZones((prev) => [...prev, finalZone]);
+        }
+      }
 
+      // Process consignateur
+      let finalConsignateur = selectedConsignateur;
+      if (selectedConsignateur && selectedConsignateur.__isNew__) {
+        const newPerson = { name: selectedConsignateur.label };
+        if (selectedEntrepriseUtilisatrice) {
+          newPerson.entreprise_id = Number(selectedEntrepriseUtilisatrice.value);
+        }
+        const { data, error } = await supabase.from("persons").insert(newPerson).select();
+        if (!error) {
+          finalConsignateur = { value: Number(data[0].id), label: data[0].name };
+          setConsignateurs((prev) => [...prev, finalConsignateur]);
+        }
+      }
 
+      // Process entreprise
+      let finalEntreprise = selectedEntreprise;
+      if (selectedEntreprise && selectedEntreprise.__isNew__) {
+        const { data, error } = await supabase.from("entreprises").insert({ name: selectedEntreprise.label }).select();
+        if (!error) {
+          finalEntreprise = { value: Number(data[0].id), label: data[0].name };
+          setEntreprises((prev) => [...prev, finalEntreprise]);
+        }
+      }
 
+      // Process demandeur
+      let finalDemandeur = selectedDemandeur;
+      if (selectedDemandeur && selectedDemandeur.__isNew__) {
+        const newPerson = { name: selectedDemandeur.label };
+        if (finalEntreprise) {
+          newPerson.entreprise_id = Number(finalEntreprise.value);
+        }
+        const { data, error } = await supabase.from("persons").insert(newPerson).select();
+        if (!error) {
+          finalDemandeur = { value: Number(data[0].id), label: data[0].name };
+          setDemandeurs((prev) => [...prev, finalDemandeur]);
+        }
+      }
 
+      let finalEntrepriseUtilisatrice = selectedEntrepriseUtilisatrice;
+      const fullDateTime = appendTimezoneOffset(formData.date_consignation);
 
+      const updatedFormData = {
+        ...formData,
+        date_consignation: fullDateTime,
+        entreprise_utilisatrice_id: finalEntrepriseUtilisatrice ? Number(finalEntrepriseUtilisatrice.value) : "",
+        site_id: finalSite ? Number(finalSite.value) : "",
+        zone_id: finalZone ? Number(finalZone.value) : "",
+        consignateur_id: finalConsignateur ? Number(finalConsignateur.value) : "",
+        demandeur_id: finalDemandeur ? Number(finalDemandeur.value) : "",
+        entreprise_id: finalEntreprise ? Number(finalEntreprise.value) : "",
+        signature_consignateur: signaturePadConsignateur.current && !signaturePadConsignateur.current.isEmpty()
+          ? signaturePadConsignateur.current.toDataURL() : "",
+        signature_demandeur: formData.consigne_pour_moi
+          ? (signaturePadConsignateur.current && !signaturePadConsignateur.current.isEmpty()
+            ? signaturePadConsignateur.current.toDataURL() : "")
+          : (signaturePadDemandeur.current && !signaturePadDemandeur.current.isEmpty()
+            ? signaturePadDemandeur.current.toDataURL() : ""),
+        signature_attestation: signaturePadAttestation.current && !signaturePadAttestation.current.isEmpty()
+          ? signaturePadAttestation.current.toDataURL() : "",
+        created_by: user.id,
+        updated_by: user.id,
+      };
 
+      const { types_consignation, consigne_pour_ee, ...dataToInsert } = updatedFormData;
+      const { data, error } = await supabase.from("consignations").insert([dataToInsert]).select();
 
+      if (error) {
+        console.error("Erreur lors de l'insertion de la consignation :", error);
+        return;
+      }
 
+      if (selectedTypesconsignations && selectedTypesconsignations.length > 0) {
+        const consignationId = data[0].id;
+        const junctionInserts = selectedTypesconsignations.map((typeId) => ({
+          cons_id: consignationId,
+          typ_cons_id: typeId,
+        }));
+        await supabase.from("consignation_types_junction").insert(junctionInserts);
+      }
 
+      navigate("/home");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
+  // Clear signature functions
+  const clearSignatureConsignateur = () => {
+    if (signaturePadConsignateur.current) signaturePadConsignateur.current.clear();
+    if (isMobile && navigator.vibrate) navigator.vibrate(50);
+  };
 
+  const clearSignatureDemandeur = () => {
+    if (signaturePadDemandeur.current) signaturePadDemandeur.current.clear();
+    if (isMobile && navigator.vibrate) navigator.vibrate(50);
+  };
+
+  const clearSignatureAttestation = () => {
+    if (signaturePadAttestation.current) signaturePadAttestation.current.clear();
+    if (isMobile && navigator.vibrate) navigator.vibrate(50);
+  };
+
+  // Planified handlers
+  const handlePlanifiedClick = (e) => {
+    e.preventDefault();
+    if (!selectedSite || !selectedZone || !selectedEntreprise) return;
+    setShowTimeDialog(true);
+  };
+
+  const handleDatetimeConfirm = async () => {
+    const newDatetime = datetimeValue;
+    setFormData((prev) => ({ ...prev, date_consignation: newDatetime }));
+    setShowTimeDialog(false);
+    await submitPlanified(newDatetime);
+    navigate("/consignationplanified");
+  };
+
+  const submitPlanified = async (newDatetime) => {
+    let newErrors = {};
+    if (!selectedSite) newErrors.site_id = ["Le site est requis"];
+    if (!selectedZone) newErrors.zone_id = ["La zone est requis"];
+    if (!selectedEntreprise) newErrors.entreprise_id = ["L'entreprise est requise"];
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      return;
+    }
+
+    const finalDate = newDatetime || formData.date_consignation;
+
+    let finalSite = selectedSite;
+    if (selectedSite && selectedSite.__isNew__) {
+      const { data, error } = await supabase.from("sites").insert({ name: selectedSite.label }).select();
+      if (!error) {
+        finalSite = { value: Number(data[0].id), label: data[0].name };
+        setSites((prev) => [...prev, finalSite]);
+      }
+    }
+
+    let finalZone = selectedZone;
+    if (selectedZone && selectedZone.__isNew__) {
+      const { data, error } = await supabase.from("zones").insert({ name: selectedZone.label, site_id: selectedSite ? Number(selectedSite.value) : null }).select();
+      if (!error) {
+        finalZone = { value: Number(data[0].id), label: data[0].name };
+        setZones((prev) => [...prev, finalZone]);
+      }
+    }
+
+    let finalConsignateur = selectedConsignateur;
+    if (selectedConsignateur && selectedConsignateur.__isNew__) {
+      const newPerson = { name: selectedConsignateur.label };
+      if (selectedEntrepriseUtilisatrice) {
+        newPerson.entreprise_id = Number(selectedEntrepriseUtilisatrice.value);
+      }
+      const { data, error } = await supabase.from("persons").insert(newPerson).select();
+      if (!error) {
+        finalConsignateur = { value: Number(data[0].id), label: data[0].name };
+        setConsignateurs((prev) => [...prev, finalConsignateur]);
+      }
+    }
+
+    let finalEntreprise = selectedEntreprise;
+    if (selectedEntreprise && selectedEntreprise.__isNew__) {
+      const { data, error } = await supabase.from("entreprises").insert({ name: selectedEntreprise.label }).select();
+      if (!error) {
+        finalEntreprise = { value: Number(data[0].id), label: data[0].name };
+        setEntreprises((prev) => [...prev, finalEntreprise]);
+      }
+    }
+
+    let finalDemandeur = selectedDemandeur;
+    if (selectedDemandeur && selectedDemandeur.__isNew__) {
+      const newPerson = { name: selectedDemandeur.label };
+      if (finalEntreprise) {
+        newPerson.entreprise_id = Number(finalEntreprise.value);
+      }
+      const { data, error } = await supabase.from("persons").insert(newPerson).select();
+      if (!error) {
+        finalDemandeur = { value: Number(data[0].id), label: data[0].name };
+        setDemandeurs((prev) => [...prev, finalDemandeur]);
+      }
+    }
+
+    const updatedFormData = {
+      ...formData,
+      date_consignation: finalDate,
+      entreprise_utilisatrice_id: selectedEntrepriseUtilisatrice ? Number(selectedEntrepriseUtilisatrice.value) : "",
+      site_id: finalSite ? Number(finalSite.value) : "",
+      zone_id: finalZone ? Number(finalZone.value) : "",
+      consignateur_id: finalConsignateur ? Number(finalConsignateur.value) : "",
+      entreprise_id: finalEntreprise ? Number(finalEntreprise.value) : "",
+      signature_consignateur: signaturePadConsignateur.current && !signaturePadConsignateur.current.isEmpty()
+        ? signaturePadConsignateur.current.toDataURL() : "",
+      signature_demandeur: "",
+      signature_attestation: signaturePadAttestation.current && !signaturePadAttestation.current.isEmpty()
+        ? signaturePadAttestation.current.toDataURL() : "",
+      status: "planified",
+      created_by: user.id,
+      updated_by: user.id,
+    };
+
+    const { types_consignation, consigne_pour_ee, ...dataToInsert } = updatedFormData;
+    const { data, error } = await supabase.from("consignations").insert([dataToInsert]).select();
+    if (error) {
+      console.error("Erreur lors de l'insertion de la consignation planifiée :", error);
+      return;
+    }
+    navigate("/consignationplanified");
+  };
+
+  // Custom select styles matching the design
+  const selectStyles = {
+    control: (base, state) => ({
+      ...base,
+      minHeight: isMobile ? '48px' : '44px',
+      borderColor: state.isFocused ? '#6366f1' : '#d1d5db',
+      boxShadow: state.isFocused ? '0 0 0 2px rgba(99, 102, 241, 0.2)' : 'none',
+      borderRadius: '0.5rem',
+      backgroundColor: 'white',
+      '&:hover': {
+        borderColor: '#9ca3af'
+      }
+    }),
+    placeholder: (base) => ({
+      ...base,
+      fontSize: isMobile ? '16px' : '14px',
+      color: '#9ca3af'
+    }),
+    option: (base, state) => ({
+      ...base,
+      backgroundColor: state.isSelected ? '#6366f1' : state.isFocused ? '#e0e7ff' : 'white',
+      color: state.isSelected ? 'white' : '#374151',
+      padding: '10px 12px',
+      '&:active': {
+        backgroundColor: '#c7d2fe'
+      }
+    }),
+    multiValue: (base) => ({
+      ...base,
+      backgroundColor: '#e0e7ff',
+      borderRadius: '0.375rem'
+    }),
+    multiValueLabel: (base) => ({
+      ...base,
+      color: '#4338ca',
+      padding: '2px 6px'
+    }),
+    multiValueRemove: (base) => ({
+      ...base,
+      color: '#6366f1',
+      '&:hover': {
+        backgroundColor: '#c7d2fe',
+        color: '#4338ca'
+      }
+    }),
+    menu: (base) => ({
+      ...base,
+      zIndex: 9999,
+      borderRadius: '0.5rem',
+      boxShadow: '0 10px 40px rgba(0, 0, 0, 0.15)',
+      border: '1px solid #e5e7eb',
+      overflow: 'hidden'
+    }),
+    menuList: (base) => ({
+      ...base,
+      padding: '4px'
+    }),
+    menuPortal: (base) => ({
+      ...base,
+      zIndex: 9999
+    })
+  };
+
+  const errorSelectStyles = {
+    ...selectStyles,
+    control: (base, state) => ({
+      ...selectStyles.control(base, state),
+      borderColor: '#ef4444',
+      '&:hover': {
+        borderColor: '#ef4444'
+      }
+    })
+  };
+
+  // Special styles for consignation type select with icons
+  const consignationTypeSelectStyles = {
+    ...selectStyles,
+    option: (base, state) => ({
+      ...base,
+      backgroundColor: state.isSelected ? '#6366f1' : state.isFocused ? '#f3f4f6' : 'white',
+      color: state.isSelected ? 'white' : '#374151',
+      padding: '8px 12px',
+      '&:active': {
+        backgroundColor: '#e0e7ff'
+      }
+    }),
+    multiValue: (base) => ({
+      ...base,
+      backgroundColor: '#f3f4f6',
+      borderRadius: '0.5rem',
+      padding: '2px 4px'
+    }),
+    multiValueLabel: (base) => ({
+      ...base,
+      color: '#374151',
+      padding: '0 4px'
+    })
+  };
+
+  // Get current step config
+  const getCurrentStepConfig = () => {
+    return stepConfig.find(s => s.id === currentStep) || stepConfig[0];
+  };
+
+  const currentStepConfig = getCurrentStepConfig();
 
   return (
     <>
-      {/* Main container with proper navbar spacing */}
-      <div className="min-h-screen bg-gray-50 sm:bg-gray-100 pt-20 pb-6">
-        <div className="container mx-auto px-3 sm:px-6 lg:px-8">
-          <div className="flex justify-center">
-            <form onSubmit={handleSubmit} className={`w-full bg-white shadow-lg rounded-none sm:rounded-xl border-0 sm:border sm:border-gray-200 ${
-              isMobile ? 'max-w-full p-4 space-y-6' : 'max-w-4xl p-8 space-y-8'
-            }`}>
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 pt-24 pb-8 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-4xl mx-auto space-y-6">
 
-              {/* Form Header */}
-              <div className="border-b border-gray-200 pb-4 sm:pb-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h1 className={`font-bold text-gray-900 ${isMobile ? 'text-lg' : 'text-2xl'}`}>
-                      Consignation
-                    </h1>
-                    <p className={`text-gray-600 ${isMobile ? 'text-sm mt-1' : 'text-base mt-2'}`}>
-                      Étape {currentStep} sur 4
-                    </p>
-                  </div>
-                  {/* Progress indicator */}
-                  <div className="flex space-x-2">
-                    {[1, 2, 3, 4].map((step) => (
-                      <div
-                        key={step}
-                        className={`w-2 h-2 rounded-full ${
-                          step <= currentStep ? 'bg-indigo-600' : 'bg-gray-300'
-                        }`}
+          {/* Header Section */}
+          <div className="flex items-center gap-4">
+            <button
+              onClick={handleReturn}
+              className="flex items-center justify-center w-10 h-10 bg-white rounded-full shadow-md hover:shadow-lg transition-all duration-200 hover:bg-gray-50"
+            >
+              <ArrowLeftIcon className="h-5 w-5 text-gray-600" />
+            </button>
+
+            <div className="flex-1">
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">
+                Nouvelle Consignation
+              </h1>
+              <div className="flex items-center gap-2">
+                <Badge variant="secondary" className="text-xs font-medium">
+                  Étape {currentStep} / 4
+                </Badge>
+                <Badge className="text-xs bg-indigo-50 border-indigo-200 text-indigo-800 border">
+                  {currentStepConfig.title}
+                </Badge>
+              </div>
+            </div>
+          </div>
+
+          {/* Progress Steps Card */}
+          <Card className="shadow-md border-0 bg-white">
+            <CardContent className="p-4 sm:p-6">
+              <div className="flex items-center justify-center">
+                <div className="flex items-center">
+                {stepConfig.map((step, index) => {
+                  const StepIcon = step.icon;
+                  const isActive = currentStep === step.id;
+                  const isCompleted = currentStep > step.id;
+                  const isSkipped = formData.consigne_pour_moi && step.id === 3;
+
+                  return (
+                    <div key={step.id} className="flex items-center">
+                      <div className="flex flex-col items-center">
+                        <div
+                          className={`flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 rounded-full border-2 transition-all duration-200 ${
+                            isActive
+                              ? 'bg-indigo-100 border-indigo-500 text-indigo-600'
+                              : isCompleted
+                              ? 'bg-green-100 border-green-500 text-green-600'
+                              : isSkipped
+                              ? 'bg-gray-100 border-gray-300 text-gray-400'
+                              : 'bg-gray-50 border-gray-300 text-gray-400'
+                          }`}
+                        >
+                          {isCompleted ? (
+                            <CheckCircleIcon className="h-5 w-5 sm:h-6 sm:w-6" />
+                          ) : (
+                            <StepIcon className="h-5 w-5 sm:h-6 sm:w-6" />
+                          )}
+                        </div>
+                        <span className={`mt-2 text-xs sm:text-sm font-medium ${
+                          isActive ? 'text-indigo-600' : isCompleted ? 'text-green-600' : 'text-gray-500'
+                        } ${isMobile ? 'hidden' : 'block'}`}>
+                          {step.title}
+                        </span>
+                      </div>
+                      {index < stepConfig.length - 1 && (
+                        <div className={`w-12 sm:w-20 lg:w-24 h-0.5 mx-2 sm:mx-4 ${
+                          currentStep > step.id ? 'bg-green-500' : 'bg-gray-300'
+                        }`} />
+                      )}
+                    </div>
+                  );
+                })}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Form Content */}
+          <form onSubmit={handleSubmit}>
+            {/* Step 1 - Site & Work Information */}
+            {currentStep === 1 && (
+              <>
+                {/* Site & Zone Card */}
+                <Card className="shadow-md border-0 bg-white mb-6 overflow-visible">
+                  <CardHeader className="pb-4">
+                    <CardTitle className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                      <div className="flex items-center justify-center w-8 h-8 bg-orange-100 rounded-full">
+                        <MapPinIcon className="h-4 w-4 text-orange-600" />
+                      </div>
+                      Localisation
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-5 overflow-visible">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                      {/* Site */}
+                      {role !== "technicien" && (
+                        <div className="relative">
+                          <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
+                            <div className="flex items-center justify-center w-6 h-6 bg-blue-100 rounded-full">
+                              <BuildingOfficeIcon className="h-3.5 w-3.5 text-blue-600" />
+                            </div>
+                            Site <span className="text-red-500">*</span>
+                          </label>
+                          <CreatableSelect
+                            value={selectedSite}
+                            onChange={setSelectedSite}
+                            options={sites}
+                            isClearable
+                            placeholder="Sélectionnez un site..."
+                            styles={errors.site_id ? errorSelectStyles : selectStyles}
+                            menuPortalTarget={document.body}
+                            menuPosition="fixed"
+                          />
+                          {errors.site_id && (
+                            <p className="mt-2 text-sm text-red-600 flex items-center gap-1">
+                              <ExclamationCircleIcon className="h-4 w-4" />
+                              {errors.site_id.join(", ")}
+                            </p>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Zone */}
+                      <div className="relative">
+                        <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
+                          <div className="flex items-center justify-center w-6 h-6 bg-orange-100 rounded-full">
+                            <MapPinIcon className="h-3.5 w-3.5 text-orange-600" />
+                          </div>
+                          Zone <span className="text-red-500">*</span>
+                        </label>
+                        <CreatableSelect
+                          value={selectedZone}
+                          onChange={setSelectedZone}
+                          options={siteZones}
+                          isClearable
+                          placeholder="Sélectionnez une zone..."
+                          styles={errors.zone_id ? errorSelectStyles : selectStyles}
+                          menuPortalTarget={document.body}
+                          menuPosition="fixed"
+                        />
+                        {errors.zone_id && (
+                          <p className="mt-2 text-sm text-red-600 flex items-center gap-1">
+                            <ExclamationCircleIcon className="h-4 w-4" />
+                            {errors.zone_id.join(", ")}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Consignation Type */}
+                    <div className="relative">
+                      <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
+                        <div className="flex items-center justify-center w-6 h-6 bg-purple-100 rounded-full">
+                          <TagIcon className="h-3.5 w-3.5 text-purple-600" />
+                        </div>
+                        Type de consignation <span className="text-red-500">*</span>
+                      </label>
+                      <Select
+                        isMulti
+                        options={types_consignations}
+                        value={types_consignations.filter((option) =>
+                          formData.types_consignation.includes(option.value)
+                        )}
+                        onChange={(selectedOptions) => {
+                          const selectedValues = selectedOptions ? selectedOptions.map((opt) => opt.value) : [];
+                          setFormData((prev) => ({ ...prev, types_consignation: selectedValues }));
+                          setSelectedTypesconsignations(selectedValues);
+                        }}
+                        placeholder="Sélectionnez des types..."
+                        styles={errors.types_consignation_id ? errorSelectStyles : consignationTypeSelectStyles}
+                        components={{
+                          Option: ConsignationTypeOption,
+                          MultiValue: ConsignationTypeMultiValue
+                        }}
+                        menuPortalTarget={document.body}
+                        menuPosition="fixed"
                       />
-                    ))}
+                      {errors.types_consignation_id && (
+                        <p className="mt-2 text-sm text-red-600 flex items-center gap-1">
+                          <ExclamationCircleIcon className="h-4 w-4" />
+                          {errors.types_consignation_id.join(", ")}
+                        </p>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Work Details Card */}
+                <Card className="shadow-md border-0 bg-white mb-6">
+                  <CardHeader className="pb-4">
+                    <CardTitle className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                      <div className="flex items-center justify-center w-8 h-8 bg-green-100 rounded-full">
+                        <WrenchScrewdriverIcon className="h-4 w-4 text-green-600" />
+                      </div>
+                      Détails des Travaux
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-5">
+                    {/* Désignation des Travaux */}
+                    <div>
+                      <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
+                        <div className="flex items-center justify-center w-6 h-6 bg-green-100 rounded-full">
+                          <DocumentTextIcon className="h-3.5 w-3.5 text-green-600" />
+                        </div>
+                        Désignation des Travaux <span className="text-red-500">*</span>
+                      </label>
+                      <textarea
+                        name="designation_travaux"
+                        value={formData.designation_travaux}
+                        onChange={handleChange}
+                        placeholder="Décrivez les travaux à effectuer..."
+                        className={`w-full rounded-lg border px-4 py-3 text-gray-900 transition-all focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
+                          isMobile ? 'min-h-[120px] text-base' : 'min-h-[100px] text-sm'
+                        } ${errors.designation_travaux ? 'border-red-500 bg-red-50' : 'border-gray-300 hover:border-gray-400'}`}
+                      />
+                      {errors.designation_travaux && (
+                        <p className="mt-2 text-sm text-red-600 flex items-center gap-1">
+                          <ExclamationCircleIcon className="h-4 w-4" />
+                          {errors.designation_travaux.join(", ")}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Équipements & Plan de prévention */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                      <div>
+                        <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
+                          <div className="flex items-center justify-center w-6 h-6 bg-purple-100 rounded-full">
+                            <CogIcon className="h-3.5 w-3.5 text-purple-600" />
+                          </div>
+                          Équipements
+                        </label>
+                        <textarea
+                          name="equipements"
+                          value={formData.equipements}
+                          onChange={handleChange}
+                          placeholder="Liste des équipements..."
+                          className={`w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900 transition-all focus:outline-none focus:ring-2 focus:ring-indigo-500 hover:border-gray-400 ${
+                            isMobile ? 'min-h-[100px] text-base' : 'min-h-[80px] text-sm'
+                          }`}
+                        />
+                      </div>
+
+                      <div>
+                        <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
+                          <div className="flex items-center justify-center w-6 h-6 bg-indigo-100 rounded-full">
+                            <ClipboardDocumentListIcon className="h-3.5 w-3.5 text-indigo-600" />
+                          </div>
+                          Plan de prévention
+                        </label>
+                        <textarea
+                          name="pdp"
+                          value={formData.pdp}
+                          onChange={handleChange}
+                          placeholder="Numéro du plan de prévention..."
+                          className={`w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900 transition-all focus:outline-none focus:ring-2 focus:ring-indigo-500 hover:border-gray-400 ${
+                            isMobile ? 'min-h-[100px] text-base' : 'min-h-[80px] text-sm'
+                          }`}
+                        />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Security Card */}
+                <Card className="shadow-md border-0 bg-white mb-6">
+                  <CardHeader className="pb-4">
+                    <CardTitle className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                      <div className="flex items-center justify-center w-8 h-8 bg-amber-100 rounded-full">
+                        <ShieldCheckIcon className="h-4 w-4 text-amber-600" />
+                      </div>
+                      Sécurité et Verrouillage
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                      <div>
+                        <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
+                          <div className="flex items-center justify-center w-6 h-6 bg-yellow-100 rounded-full">
+                            <KeyIcon className="h-3.5 w-3.5 text-yellow-600" />
+                          </div>
+                          Numéro de cadenas
+                        </label>
+                        <input
+                          type="text"
+                          name="cadenas_num"
+                          value={formData.cadenas_num}
+                          onChange={handleChange}
+                          placeholder="Ex: CAD-001"
+                          className={`w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900 transition-all focus:outline-none focus:ring-2 focus:ring-indigo-500 hover:border-gray-400 ${
+                            isMobile ? 'h-12 text-base' : 'text-sm'
+                          }`}
+                        />
+                      </div>
+
+                      <div>
+                        <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
+                          <div className="flex items-center justify-center w-6 h-6 bg-indigo-100 rounded-full">
+                            <LockClosedIcon className="h-3.5 w-3.5 text-indigo-600" />
+                          </div>
+                          Lockbox
+                        </label>
+                        <input
+                          type="text"
+                          name="lockbox"
+                          value={formData.lockbox}
+                          onChange={handleChange}
+                          placeholder="Ex: LB-001"
+                          className={`w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900 transition-all focus:outline-none focus:ring-2 focus:ring-indigo-500 hover:border-gray-400 ${
+                            isMobile ? 'h-12 text-base' : 'text-sm'
+                          }`}
+                        />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </>
+            )}
+
+            {/* Step 2 - Consignateur Details */}
+            {currentStep === 2 && (
+              <>
+                <Card className="shadow-md border-0 bg-white mb-6 overflow-visible">
+                  <CardHeader className="pb-4">
+                    <CardTitle className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                      <div className="flex items-center justify-center w-8 h-8 bg-green-100 rounded-full">
+                        <UserIcon className="h-4 w-4 text-green-600" />
+                      </div>
+                      Informations du Consignateur
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-5 overflow-visible">
+                    {/* Enterprise Selection */}
+                    {role !== "technicien" && (
+                      <div className="relative">
+                        <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
+                          <div className="flex items-center justify-center w-6 h-6 bg-blue-100 rounded-full">
+                            <BuildingOfficeIcon className="h-3.5 w-3.5 text-blue-600" />
+                          </div>
+                          Entreprise utilisatrice <span className="text-red-500">*</span>
+                        </label>
+                        <CreatableSelect
+                          value={selectedEntrepriseUtilisatrice}
+                          onChange={setSelectedEntrepriseUtilisatrice}
+                          options={entreprises}
+                          isClearable
+                          placeholder="Sélectionnez une entreprise..."
+                          styles={errors.entreprise_id ? errorSelectStyles : selectStyles}
+                          menuPortalTarget={document.body}
+                          menuPosition="fixed"
+                        />
+                        {errors.entreprise_id && (
+                          <p className="mt-2 text-sm text-red-600 flex items-center gap-1">
+                            <ExclamationCircleIcon className="h-4 w-4" />
+                            {errors.entreprise_id.join(", ")}
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Consignateur Selection */}
+                    <div className="relative">
+                      <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
+                        <div className="flex items-center justify-center w-6 h-6 bg-green-100 rounded-full">
+                          <IdentificationIcon className="h-3.5 w-3.5 text-green-600" />
+                        </div>
+                        Consignateur <span className="text-red-500">*</span>
+                      </label>
+                      <CreatableSelect
+                        value={selectedConsignateur}
+                        onChange={setSelectedConsignateur}
+                        options={entreprisePersons}
+                        isClearable
+                        placeholder="Sélectionnez un consignateur..."
+                        styles={errors.consignateur_id ? errorSelectStyles : selectStyles}
+                        menuPortalTarget={document.body}
+                        menuPosition="fixed"
+                      />
+                      {errors.consignateur_id && (
+                        <p className="mt-2 text-sm text-red-600 flex items-center gap-1">
+                          <ExclamationCircleIcon className="h-4 w-4" />
+                          {errors.consignateur_id.join(", ")}
+                        </p>
+                      )}
+                    </div>
+
+                    <Separator className="my-4" />
+
+                    {/* Signature */}
+                    <div>
+                      <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
+                        <div className="flex items-center justify-center w-6 h-6 bg-purple-100 rounded-full">
+                          <PencilSquareIcon className="h-3.5 w-3.5 text-purple-600" />
+                        </div>
+                        Signature du consignateur <span className="text-red-500">*</span>
+                      </label>
+                      <div className={`border-2 border-dashed rounded-lg overflow-hidden transition-colors ${
+                        errors.signature_consignateur ? 'border-red-400 bg-red-50' : 'border-gray-300 bg-white hover:border-gray-400'
+                      }`} style={{ touchAction: 'none' }}>
+                        <canvas
+                          ref={sigPadConsignateur}
+                          className="w-full bg-transparent touch-none"
+                          style={{ touchAction: 'none' }}
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={clearSignatureConsignateur}
+                        className={`mt-3 flex items-center justify-center gap-2 rounded-lg bg-gray-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-gray-700 transition-colors ${
+                          isMobile ? 'w-full h-11' : ''
+                        }`}
+                      >
+                        <ArrowLeftIcon className="h-4 w-4" />
+                        Effacer la signature
+                      </button>
+                      {errors.signature_consignateur && (
+                        <p className="mt-2 text-sm text-red-600 flex items-center gap-1">
+                          <ExclamationCircleIcon className="h-4 w-4" />
+                          {errors.signature_consignateur.join(", ")}
+                        </p>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Options Card */}
+                <Card className="shadow-md border-0 bg-white mb-6">
+                  <CardHeader className="pb-4">
+                    <CardTitle className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                      <div className="flex items-center justify-center w-8 h-8 bg-indigo-100 rounded-full">
+                        <Bars3BottomLeftIcon className="h-4 w-4 text-indigo-600" />
+                      </div>
+                      Options
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {/* Consigné pour moi-même */}
+                    <div className={`p-4 rounded-lg border transition-colors cursor-pointer ${
+                      formData.consigne_pour_moi
+                        ? 'bg-indigo-50 border-indigo-300'
+                        : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
+                    }`}>
+                      <label className="flex items-center gap-3 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          name="consigne_pour_moi"
+                          checked={formData.consigne_pour_moi}
+                          onChange={handleChange}
+                          className="h-5 w-5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                        />
+                        <div className="flex items-center gap-2">
+                          <div className="flex items-center justify-center w-8 h-8 bg-indigo-100 rounded-full">
+                            <HandRaisedIcon className="h-4 w-4 text-indigo-600" />
+                          </div>
+                          <div>
+                            <p className="font-medium text-gray-900">Consigné pour moi-même</p>
+                            <p className="text-sm text-gray-600">Je suis également le demandeur de cette consignation</p>
+                          </div>
+                        </div>
+                      </label>
+                    </div>
+
+                    {/* Informer la salle de contrôle */}
+                    <div className={`p-4 rounded-lg border transition-colors cursor-pointer ${
+                      formData.info_salle_controle
+                        ? 'bg-green-50 border-green-300'
+                        : errors.info_salle_controle
+                        ? 'bg-red-50 border-red-300'
+                        : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
+                    }`}>
+                      <label className="flex items-center gap-3 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          name="info_salle_controle"
+                          checked={formData.info_salle_controle}
+                          onChange={handleChange}
+                          className="h-5 w-5 rounded border-gray-300 text-green-600 focus:ring-green-500"
+                        />
+                        <div className="flex items-center gap-2">
+                          <div className={`flex items-center justify-center w-8 h-8 rounded-full ${
+                            formData.info_salle_controle ? 'bg-green-100' : 'bg-gray-200'
+                          }`}>
+                            <ShieldCheckIcon className={`h-4 w-4 ${
+                              formData.info_salle_controle ? 'text-green-600' : 'text-gray-500'
+                            }`} />
+                          </div>
+                          <div>
+                            <p className="font-medium text-gray-900">
+                              Informer la salle de contrôle <span className="text-red-500">*</span>
+                            </p>
+                            <p className="text-sm text-gray-600">Confirmation d'information de la salle de contrôle</p>
+                          </div>
+                        </div>
+                      </label>
+                      {errors.info_salle_controle && (
+                        <p className="mt-2 ml-8 text-sm text-red-600 flex items-center gap-1">
+                          <ExclamationCircleIcon className="h-4 w-4" />
+                          {errors.info_salle_controle.join(", ")}
+                        </p>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </>
+            )}
+
+            {/* Step 3 - Demandeur Details */}
+            {currentStep === 3 && !formData.consigne_pour_moi && (
+              <Card className="shadow-md border-0 bg-white mb-6 overflow-visible">
+                <CardHeader className="pb-4">
+                  <CardTitle className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                    <div className="flex items-center justify-center w-8 h-8 bg-purple-100 rounded-full">
+                      <UserGroupIcon className="h-4 w-4 text-purple-600" />
+                    </div>
+                    Informations du Demandeur
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-5 overflow-visible">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                    {/* Entreprise extérieure */}
+                    <div className="relative">
+                      <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
+                        <div className="flex items-center justify-center w-6 h-6 bg-blue-100 rounded-full">
+                          <BuildingOfficeIcon className="h-3.5 w-3.5 text-blue-600" />
+                        </div>
+                        Entreprise extérieure <span className="text-red-500">*</span>
+                      </label>
+                      <CreatableSelect
+                        value={selectedEntreprise}
+                        onChange={setSelectedEntreprise}
+                        options={entreprises}
+                        isClearable
+                        placeholder="Sélectionnez une entreprise..."
+                        styles={errors.entreprise_id ? errorSelectStyles : selectStyles}
+                        menuPortalTarget={document.body}
+                        menuPosition="fixed"
+                      />
+                      {errors.entreprise_id && (
+                        <p className="mt-2 text-sm text-red-600 flex items-center gap-1">
+                          <ExclamationCircleIcon className="h-4 w-4" />
+                          {errors.entreprise_id.join(", ")}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Demandeur */}
+                    <div className="relative">
+                      <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
+                        <div className="flex items-center justify-center w-6 h-6 bg-purple-100 rounded-full">
+                          <UserIcon className="h-3.5 w-3.5 text-purple-600" />
+                        </div>
+                        Demandeur <span className="text-red-500">*</span>
+                      </label>
+                      <CreatableSelect
+                        value={selectedDemandeur}
+                        onChange={setSelectedDemandeur}
+                        options={entreprisePersons}
+                        isClearable
+                        placeholder="Sélectionnez un demandeur..."
+                        styles={errors.demandeur_id ? errorSelectStyles : selectStyles}
+                        menuPortalTarget={document.body}
+                        menuPosition="fixed"
+                      />
+                      {errors.demandeur_id && (
+                        <p className="mt-2 text-sm text-red-600 flex items-center gap-1">
+                          <ExclamationCircleIcon className="h-4 w-4" />
+                          {errors.demandeur_id.join(", ")}
+                        </p>
+                      )}
+                    </div>
                   </div>
-                </div>
-              </div>
 
-    {currentStep === 1 && (
-      <div className="space-y-6">
-        <div>
-          <h2 className={`font-semibold text-gray-900 ${isMobile ? 'text-base' : 'text-lg'}`}>
-            BORDEREAU DE CONSIGNATION - DÉCONSIGNATION
-          </h2>
-          <p className={`text-gray-600 ${isMobile ? 'text-sm mt-1' : 'text-base mt-2'}`}>
-            Fournissez les détails du site et des travaux.
-          </p>
-        </div>
-        <div className={`grid grid-cols-1 gap-6 ${isMobile ? '' : 'sm:grid-cols-2 gap-x-6 gap-y-8'}`}>
-          {/* Site (if applicable) */}
-          {role !== "technicien" && (
-            <div className="sm:col-span-1">
-              <label htmlFor="site_id" className={`block font-medium text-gray-900 ${isMobile ? 'text-sm mb-2' : 'text-sm mb-2'}`}>
-                Site
-              </label>
-              <CreatableSelect
-                id="site_id"
-                name="site_id"
-                value={selectedSite}
-                onChange={(value) => setSelectedSite(value)}
-                options={sites}
-                isClearable
-                placeholder="Sélectionnez ou créez un site..."
-                styles={{
-                  control: (base) => ({
-                    ...base,
-                    minHeight: isMobile ? '44px' : '40px',
-                    borderColor: errors.site_id ? '#ef4444' : base.borderColor,
-                    boxShadow: 'none',
-                    '&:hover': {
-                      borderColor: errors.site_id ? '#ef4444' : '#d1d5db'
-                    }
-                  }),
-                  placeholder: (base) => ({
-                    ...base,
-                    fontSize: isMobile ? '16px' : '14px'
-                  })
-                }}
-              />
-              {errors.site_id && (
-                <p className="mt-2 text-sm text-red-600">{errors.site_id.join(", ")}</p>
-              )}
-            </div>
-          )}
-          {/* Zone */}
-          <div className="sm:col-span-1">
-            <label htmlFor="zone_id" className={`block font-medium text-gray-900 ${isMobile ? 'text-sm mb-2' : 'text-sm mb-2'}`}>
-              Zone
-            </label>
-            <CreatableSelect
-              id="zone_id"
-              name="zone_id"
-              value={selectedZone}
-              onChange={(value) => setSelectedZone(value)}
-              options={siteZones}
-              isClearable
-              placeholder="Sélectionnez ou créez une zone..."
-              styles={{
-                control: (base) => ({
-                  ...base,
-                  minHeight: isMobile ? '44px' : '40px',
-                  borderColor: errors.zone_id ? '#ef4444' : base.borderColor,
-                  boxShadow: 'none',
-                  '&:hover': {
-                    borderColor: errors.zone_id ? '#ef4444' : '#d1d5db'
-                  }
-                }),
-                placeholder: (base) => ({
-                  ...base,
-                  fontSize: isMobile ? '16px' : '14px'
-                })
-              }}
-            />
-            {errors.zone_id && (
-              <p className="mt-2 text-sm text-red-600">{errors.zone_id.join(", ")}</p>
-            )}
-          </div>
-          {/* Type de consignation */}
-          <div className="sm:col-span-2">
-            <label htmlFor="type_consignation" className="block text-sm font-medium text-gray-900">
-              Type de consignation
-            </label>
-            <Select
-              id="type_consignation"
-              name="type_consignation"
-              isMulti
-              options={types_consignations}
-              value={types_consignations.filter((option) =>
-                formData.types_consignation.includes(option.value)
-              )}
-              onChange={(selectedOptions) => {
-                const selectedValues = selectedOptions ? selectedOptions.map((opt) => opt.value) : [];
-                setFormData((prev) => ({ ...prev, types_consignation: selectedValues }));
-                setSelectedTypesconsignations(selectedValues);
-              }}
-              placeholder="Sélectionnez des types..."
-              className="mt-2"
-            />
-            {errors.types_consignation_id && (
-              <p className="mt-2 text-sm text-red-600">{errors.types_consignation_id.join(", ")}</p>
-            )}
-          </div>
-          {/* Désignation des Travaux – full width */}
-          <div className="sm:col-span-2">
-            <label htmlFor="designation_travaux" className={`block font-medium text-gray-900 ${isMobile ? 'text-sm mb-2' : 'text-sm mb-2'}`}>
-              Désignation des Travaux <span className="text-red-500">*</span>
-            </label>
-            <textarea
-              id="designation_travaux"
-              name="designation_travaux"
-              value={formData.designation_travaux}
-              onChange={handleChange}
-              placeholder="Décrivez les travaux à effectuer..."
-              className={`block w-full rounded-md bg-white px-3 py-3 text-gray-900 border transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 ${
-                isMobile ? 'min-h-[120px] text-base' : 'min-h-[100px] text-sm'
-              } ${
-                errors.designation_travaux
-                  ? 'border-red-500 bg-red-50'
-                  : 'border-gray-300 hover:border-gray-400'
-              }`}
-            ></textarea>
-            {errors.designation_travaux && (
-              <p className="mt-2 text-sm text-red-600">{errors.designation_travaux.join(", ")}</p>
-            )}
-          </div>
-          {/* Équipements */}
-          <div className="sm:col-span-1">
-            <label htmlFor="equipements" className={`block font-medium text-gray-900 ${isMobile ? 'text-sm mb-2' : 'text-sm mb-2'}`}>
-              Équipements
-            </label>
-            <textarea
-              id="equipements"
-              name="equipements"
-              value={formData.equipements}
-              onChange={handleChange}
-              placeholder="Liste des équipements..."
-              className={`block w-full rounded-md bg-white px-3 py-3 text-gray-900 border border-gray-300 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 hover:border-gray-400 ${
-                isMobile ? 'min-h-[100px] text-base' : 'min-h-[80px] text-sm'
-              }`}
-            ></textarea>
-            {errors.equipements && (
-              <p className="mt-2 text-sm text-red-600">{errors.equipements.join(", ")}</p>
-            )}
-          </div>
-          {/* Plan de prévention */}
-          <div className="sm:col-span-1">
-            <label htmlFor="pdp" className="block text-sm font-medium text-gray-900">
-              Plan de prévention
-            </label>
-            <textarea
-              id="pdp"
-              name="pdp"
-              value={formData.pdp}
-              onChange={handleChange}
-              className={`mt-2 block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline outline-1 outline-gray-300 placeholder:text-gray-400 focus:outline-2 focus:outline-indigo-600 ${
-                isMobile ? 'min-h-[100px]' : 'min-h-[80px]'
-              }`}
-            ></textarea>
-            {errors.pdp && (
-              <p className="mt-2 text-sm text-red-600">{errors.pdp.join(", ")}</p>
-            )}
-          </div>
-          {/* Numéro de cadenas */}
-          <div className="sm:col-span-1">
-            <label htmlFor="cadenas_num" className="block text-sm font-medium text-gray-900">
-              Numéro de cadenas
-            </label>
-            <input
-              id="cadenas_num"
-              type="text"
-              name="cadenas_num"
-              value={formData.cadenas_num}
-              onChange={handleChange}
-              className={`mt-2 block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline outline-1 outline-gray-300 placeholder:text-gray-400 focus:outline-2 focus:outline-indigo-600 ${
-                isMobile ? 'h-12' : ''
-              }`}
-            />
-            {errors.cadenas_num && (
-              <p className="mt-2 text-sm text-red-600">{errors.cadenas_num.join(", ")}</p>
-            )}
-          </div>
-          {/* Lockbox */}
-          <div className="sm:col-span-1">
-            <label htmlFor="lockbox" className="block text-sm font-medium text-gray-900">
-              Lockbox
-            </label>
-            <input
-              id="lockbox"
-              type="text"
-              name="lockbox"
-              value={formData.lockbox}
-              onChange={handleChange}
-              className={`mt-2 block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline outline-1 outline-gray-300 placeholder:text-gray-400 focus:outline-2 focus:outline-indigo-600 ${
-                isMobile ? 'h-12' : ''
-              }`}
-            />
-            {errors.lockbox && (
-              <p className="mt-2 text-sm text-red-600">{errors.lockbox.join(", ")}</p>
-            )}
-          </div>
-        </div>
-      </div>
-    )}
+                  <Separator className="my-4" />
 
-          {/* Étape 2 – Détails du consignateur avec sélection de l'entreprise */}
-          {currentStep === 2 && (
-            <div className="space-y-6">
-              <div>
-                <h2 className={`font-semibold text-gray-900 ${isMobile ? 'text-base' : 'text-lg'}`}>
-                  Détails du consignateur
-                </h2>
-                <p className={`text-gray-600 ${isMobile ? 'text-sm mt-1' : 'text-base mt-2'}`}>
-                  Informations sur le consignateur et l'entreprise.
-                </p>
-              </div>
-              <div className="mt-10 grid grid-cols-1 gap-x-6 gap-y-8 sm:grid-cols-6">
-                {/* Sélection de l'entreprise */}
-                {role === "technicien" ? (
-                  <></>
-                ) : (
-                  <div className="sm:col-span-6">
-                    <label htmlFor="entreprise_id" className="block text-sm font-medium text-gray-900">
-                      Entreprise
+                  {/* Signature du demandeur */}
+                  <div>
+                    <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
+                      <div className="flex items-center justify-center w-6 h-6 bg-green-100 rounded-full">
+                        <PencilSquareIcon className="h-3.5 w-3.5 text-green-600" />
+                      </div>
+                      Signature du demandeur <span className="text-red-500">*</span>
                     </label>
-                    <CreatableSelect
-                      id="entreprise_id"
-                      name="entreprise_id"
-                      value={selectedEntrepriseUtilisatrice}
-                      onChange={(value) => setSelectedEntrepriseUtilisatrice(value)}
-                      options={entreprises}
-                      isClearable
-                      placeholder="Sélectionnez ou créez une entreprise..."
-                      className="mt-2"
-                    />
-                    {errors.entreprise_id && (
-                      <p className="mt-2 text-sm text-red-600">{errors.entreprise_id.join(", ")}</p>
+                    <div className={`border-2 border-dashed rounded-lg overflow-hidden transition-colors ${
+                      errors.signature_demandeur ? 'border-red-400 bg-red-50' : 'border-gray-300 bg-white hover:border-gray-400'
+                    }`} style={{ touchAction: 'none' }}>
+                      <canvas
+                        ref={sigPadDemandeur}
+                        className="w-full bg-transparent touch-none"
+                        style={{ touchAction: 'none' }}
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={clearSignatureDemandeur}
+                      className={`mt-3 flex items-center justify-center gap-2 rounded-lg bg-gray-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-gray-700 transition-colors ${
+                        isMobile ? 'w-full h-11' : ''
+                      }`}
+                    >
+                      <ArrowLeftIcon className="h-4 w-4" />
+                      Effacer la signature
+                    </button>
+                    {errors.signature_demandeur && (
+                      <p className="mt-2 text-sm text-red-600 flex items-center gap-1">
+                        <ExclamationCircleIcon className="h-4 w-4" />
+                        {errors.signature_demandeur.join(", ")}
+                      </p>
                     )}
                   </div>
-                )}
-                {/* Sélection du consignateur (filtré par l'entreprise si disponible) */}
-                <div className="sm:col-span-6">
-                  <label htmlFor="consignateur_id" className="block text-sm font-medium text-gray-900">
-                    Consignateur
-                  </label>
-                  <CreatableSelect
-                    id="consignateur_id"
-                    name="consignateur_id"
-                    value={selectedConsignateur}
-                    onChange={(value) => setSelectedConsignateur(value)}
-                    options={entreprisePersons}
-                    isClearable
-                    placeholder="Sélectionnez ou créez un consignateur..."
-                    className="mt-2"
-                  />
-                  {errors.consignateur_id && (
-                    <p className="mt-2 text-sm text-red-600">{errors.consignateur_id.join(", ")}</p>
-                  )}
-                </div>
-                {/* Signature du consignateur */}
-                <div className="sm:col-span-6">
-                  <label className="block text-sm font-medium text-gray-900">Signature du consignateur</label>
-                  <div className="w-full border border-gray-300 rounded-lg overflow-hidden" style={{ touchAction: 'none' }}>
-                    <canvas
-                      ref={sigPadConsignateur}
-                      className="w-full bg-white touch-none"
-                      style={{ touchAction: 'none' }}
-                    ></canvas>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={clearSignatureConsignateur}
-                    className={`mt-2 rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 transition-colors ${
-                      isMobile ? 'w-full h-12' : ''
-                    }`}
-                  >
-                    Effacer la signature
-                  </button>
-                  {errors.signature_consignateur && (
-                    <p className="mt-2 text-sm text-red-600">{errors.signature_consignateur.join(", ")}</p>
-                  )}
-                </div>
-                {/* Cases à cocher */}
-                <div className="sm:col-span-3">
-                  <label className="flex items-center text-sm font-medium text-gray-900">
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Step 4 - Final Review */}
+            {currentStep === 4 && (
+              <>
+                {/* Date Card */}
+                <Card className="shadow-md border-0 bg-gradient-to-r from-blue-50 to-indigo-50 mb-6">
+                  <CardContent className="p-6">
+                    <div className="flex items-center gap-4 mb-4">
+                      <div className="flex items-center justify-center w-12 h-12 bg-blue-100 rounded-full">
+                        <CalendarDaysIcon className="h-6 w-6 text-blue-600" />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-gray-900">Date de consignation</h3>
+                        <p className="text-sm text-gray-600">Confirmez la date et l'heure</p>
+                      </div>
+                    </div>
                     <input
-                      type="checkbox"
-                      name="consigne_pour_moi"
-                      checked={formData.consigne_pour_moi}
-                      onChange={handleChange}
-                      className="mr-2 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-600"
+                      type="datetime-local"
+                      name="date_consignation"
+                      value={formData.date_consignation}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, date_consignation: e.target.value }))}
+                      className={`w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900 transition-all focus:outline-none focus:ring-2 focus:ring-indigo-500 hover:border-gray-400 bg-white ${
+                        isMobile ? 'h-12 text-base' : 'text-sm'
+                      }`}
                     />
-                    Consigné pour moi-même
-                  </label>
-                </div>
-                <div className="sm:col-span-3">
-                <div className="sm:col-span-3">
-  <label className="flex items-center text-sm font-medium text-gray-900">
-    <input
-      type="checkbox"
-      name="info_salle_controle"
-      checked={formData.info_salle_controle}
-      onChange={handleChange}
-      className="mr-2 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-600"
-    />
-    Informer la salle de contrôle
-  </label>
-  {errors.info_salle_controle && (
-    <p className="mt-2 text-sm text-red-600">{errors.info_salle_controle.join(", ")}</p>
-  )}
-</div>
-                </div>
-              </div>
-            </div>
-          )}
+                  </CardContent>
+                </Card>
 
-          {/* Étape 3 – Détails du demandeur et de l'entreprise */}
-          {currentStep === 3 &&
-            (!formData.consigne_pour_moi ? (
-              <div className="border-b border-gray-900/10 pb-12">
-                <h2 className="text-base font-semibold text-gray-900">BORDEREAU DE CONSIGNATION - DÉCONSIGNATION</h2>
-                <p className="mt-1 text-sm text-gray-600">Détails du demandeur et de l'entreprise</p>
-                <div className="mt-10 grid grid-cols-1 gap-x-6 gap-y-8 sm:grid-cols-6">
-                  {/* Sélection de l'entreprise extérieure */}
-                  <div className="sm:col-span-3">
-                    <label htmlFor="entreprise_id" className="block text-sm font-medium text-gray-900">
-                      Entreprise extérieure
-                    </label>
-                    <CreatableSelect
-                      id="entreprise_id"
-                      name="entreprise_id"
-                      value={selectedEntreprise}
-                      onChange={(value) => setSelectedEntreprise(value)}
-                      options={entreprises}
-                      isClearable
-                      placeholder="Sélectionnez ou créez une entreprise..."
-                      className="mt-2"
-                    />
-                    {errors.entreprise_id && (
-                      <p className="mt-2 text-sm text-red-600">{errors.entreprise_id.join(", ")}</p>
+                {/* Declaration Card */}
+                <Card className="shadow-md border-0 bg-white mb-6">
+                  <CardHeader className="pb-4">
+                    <CardTitle className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                      <div className="flex items-center justify-center w-8 h-8 bg-indigo-100 rounded-full">
+                        <DocumentCheckIcon className="h-4 w-4 text-indigo-600" />
+                      </div>
+                      Déclaration
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-5">
+                    <div className="bg-indigo-50 rounded-lg p-4 border border-indigo-100">
+                      <p className="text-sm text-gray-700 leading-relaxed">
+                        Je soussigné M. <span className="font-semibold text-indigo-700">{selectedDemandeur ? selectedDemandeur.label : "N/A"}</span> de l'entreprise{" "}
+                        <span className="font-semibold text-indigo-700">{selectedEntreprise ? selectedEntreprise.label : "N/A"}</span> chargé des travaux ci-dessus désignés,
+                        déclare avoir reçu le présent avis de consignation et pris connaissance des prescriptions de sécurité.
+                      </p>
+                    </div>
+
+                    <Separator className="my-4" />
+
+                    {/* Signature d'attestation */}
+                    <div>
+                      <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
+                        <div className="flex items-center justify-center w-6 h-6 bg-indigo-100 rounded-full">
+                          <PencilSquareIcon className="h-3.5 w-3.5 text-indigo-600" />
+                        </div>
+                        Signature d'attestation <span className="text-red-500">*</span>
+                      </label>
+                      <div className={`border-2 border-dashed rounded-lg overflow-hidden transition-colors ${
+                        errors.signature_attestation ? 'border-red-400 bg-red-50' : 'border-gray-300 bg-white hover:border-gray-400'
+                      }`} style={{ touchAction: 'none' }}>
+                        <canvas
+                          ref={sigPadAttestation}
+                          className="w-full bg-transparent touch-none"
+                          style={{ touchAction: 'none' }}
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={clearSignatureAttestation}
+                        className={`mt-3 flex items-center justify-center gap-2 rounded-lg bg-gray-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-gray-700 transition-colors ${
+                          isMobile ? 'w-full h-11' : ''
+                        }`}
+                      >
+                        <ArrowLeftIcon className="h-4 w-4" />
+                        Effacer la signature
+                      </button>
+                      {errors.signature_attestation && (
+                        <p className="mt-2 text-sm text-red-600 flex items-center gap-1">
+                          <ExclamationCircleIcon className="h-4 w-4" />
+                          {errors.signature_attestation.join(", ")}
+                        </p>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </>
+            )}
+
+            {/* Navigation Buttons */}
+            <Card className="shadow-md border-0 bg-white">
+              <CardContent className="p-5">
+                <div className={`flex items-center ${
+                  isMobile ? 'flex-col gap-3' : 'justify-between gap-4'
+                }`}>
+                  {/* Back Button */}
+                  {currentStep > 1 ? (
+                    <button
+                      type="button"
+                      onClick={handlePreviousStep}
+                      className={`flex items-center justify-center gap-2 px-4 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-all font-medium shadow-md hover:shadow-lg ${
+                        isMobile ? 'w-full h-12 order-2' : ''
+                      }`}
+                    >
+                      <ArrowLeftIcon className="h-5 w-5" />
+                      Précédent
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleReturn}
+                      className={`flex items-center justify-center gap-2 px-4 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-all font-medium shadow-md hover:shadow-lg ${
+                        isMobile ? 'w-full h-12 order-2' : ''
+                      }`}
+                    >
+                      <ArrowLeftIcon className="h-5 w-5" />
+                      Retour
+                    </button>
+                  )}
+
+                  {/* Action Buttons Container */}
+                  <div className={`flex gap-3 ${isMobile ? 'w-full flex-col order-1' : ''}`}>
+                    {/* Planified Button - Only on Step 3 */}
+                    {currentStep === 3 && (
+                      <button
+                        type="button"
+                        onClick={handlePlanifiedClick}
+                        className={`flex items-center justify-center gap-2 px-4 py-3 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-all font-medium shadow-md hover:shadow-lg ${
+                          isMobile ? 'w-full h-12' : ''
+                        }`}
+                      >
+                        <CalendarIcon className="h-5 w-5" />
+                        Planifier
+                      </button>
+                    )}
+
+                    {/* Next/Submit Button */}
+                    {currentStep < 4 ? (
+                      <button
+                        type="button"
+                        onClick={handleNextStep}
+                        className={`flex items-center justify-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-all font-medium shadow-md hover:shadow-lg ${
+                          isMobile ? 'w-full h-12' : ''
+                        }`}
+                      >
+                        Suivant
+                        <ArrowRightIcon className="h-5 w-5" />
+                      </button>
+                    ) : (
+                      <ButtonSpinner
+                        type="submit"
+                        loading={isSubmitting}
+                        loadingText="Envoi..."
+                        className={`flex items-center justify-center gap-2 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all font-medium shadow-md hover:shadow-lg ${
+                          isMobile ? 'w-full h-12' : ''
+                        }`}
+                      >
+                        <PaperAirplaneIcon className="h-5 w-5" />
+                        Envoyer
+                      </ButtonSpinner>
                     )}
                   </div>
-                  {/* Sélection du demandeur – si une entreprise est sélectionnée, afficher les personnes de l'entreprise ; sinon afficher la liste complète */}
-                  <div className="sm:col-span-3">
-                    <label htmlFor="demandeur_id" className="block text-sm font-medium text-gray-900">
-                      Demandeur
-                    </label>
-                    <CreatableSelect
-                      id="demandeur_id"
-                      name="demandeur_id"
-                      value={selectedDemandeur}
-                      onChange={(value) => setSelectedDemandeur(value)}
-                      options={entreprisePersons}
-                      isClearable
-                      placeholder="Sélectionnez ou créez un demandeur..."
-                      className="mt-2"
-                    />
-                    {errors.demandeur_id && (
-                      <p className="mt-2 text-sm text-red-600">{errors.demandeur_id.join(", ")}</p>
-                    )}
-                  </div>
                 </div>
-                {/* Signature du demandeur */}
-                <div className="sm:col-span-6 mt-10">
-                  <label className="block text-sm font-medium text-gray-900">Signature du demandeur</label>
-                  <div className="w-full border border-gray-300 rounded-lg overflow-hidden" style={{ touchAction: 'none' }}>
-                    <canvas
-                      ref={sigPadDemandeur}
-                      className="w-full bg-white touch-none"
-                      style={{ touchAction: 'none' }}
-                    ></canvas>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={clearSignatureDemandeur}
-                    className={`mt-2 rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 transition-colors ${
-                      isMobile ? 'w-full h-12' : ''
-                    }`}
-                  >
-                    Effacer la signature
-                  </button>
-                  {errors.signature_demandeur && (
-                    <p className="mt-2 text-sm text-red-600">{errors.signature_demandeur.join(", ")}</p>
-                  )}
-                </div>
-              </div>
-            ) : (
-              // Si "consigné pour moi" est coché, conserver la sélection d'entreprise de l'étape 2 et auto-attribuer le demandeur comme consignateur.
-              <div className="border-b border-gray-900/10 pb-12">
-                <h2 className="text-base font-semibold text-gray-900">Détails du demandeur et de l'entreprise</h2>
-                <p className="mt-1 text-sm text-gray-600">Détails du demandeur et de l'entreprise</p>
-                <div className="mt-10 grid grid-cols-1 gap-x-6 gap-y-8 sm:grid-cols-6">
-                  {/* Champ entreprise – désactivé */}
-                  <div className="sm:col-span-3">
-                    <label htmlFor="entreprise_id" className="block text-sm font-medium text-gray-900">
-                      Entreprise extérieure
-                    </label>
-                    <CreatableSelect
-                      id="entreprise_id"
-                      name="entreprise_id"
-                      value={selectedEntreprise}
-                      onChange={(value) => setSelectedEntreprise(value)}
-                      options={entreprises}
-                      isClearable
-                      placeholder="Sélectionnez ou créez une entreprise..."
-                      className="mt-2"
-                      isDisabled
-                    />
-                    {errors.entreprise_id && (
-                      <p className="mt-2 text-sm text-red-600">{errors.entreprise_id.join(", ")}</p>
-                    )}
-                  </div>
-                  {/* Champ demandeur – désactivé et auto-attribué */}
-                  <div className="sm:col-span-3">
-                    <label htmlFor="demandeur_id" className="block text-sm font-medium text-gray-900">
-                      Demandeur
-                    </label>
-                    <CreatableSelect
-                      id="demandeur_id"
-                      name="demandeur_id"
-                      value={selectedConsignateur}
-                      onChange={(value) => setSelectedDemandeur(value)}
-                      options={demandeurs}
-                      isClearable
-                      placeholder="Sélectionnez ou créez un demandeur..."
-                      className="mt-2"
-                      isDisabled
-                    />
-                  </div>
-                </div>
-                {/* Signature du demandeur */}
-                <div className="sm:col-span-6 mt-10">
-                  <label className="block text-sm font-medium text-gray-900">Signature du demandeur</label>
-                  <div className="w-full border border-gray-300 rounded-lg overflow-hidden" style={{ touchAction: 'none' }}>
-                    <canvas
-                      ref={sigPadDemandeur}
-                      className="w-full bg-white touch-none"
-                      style={{ touchAction: 'none' }}
-                    ></canvas>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={clearSignatureDemandeur}
-                    className={`mt-2 rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 transition-colors ${
-                      isMobile ? 'w-full h-12' : ''
-                    }`}
-                  >
-                    Effacer la signature
-                  </button>
-                  {errors.signature_demandeur && (
-                    <p className="mt-2 text-sm text-red-600">{errors.signature_demandeur.join(", ")}</p>
-                  )}
-                </div>
-              </div>
-            ))}
-                      {/* Étape 4 – Revue finale et soumission */}
-          {currentStep === 4 && (
-            <div className="border-b border-gray-900/10 pb-12">
-              <h2 className="text-base font-semibold text-gray-900">Étape finale</h2>
-              <p className="mt-1 text-sm text-gray-600">
-                Fournissez la signature du demandeur et vérifiez les détails.
-              </p>
-              <div className="mt-10 grid grid-cols-1 gap-x-6 gap-y-8 sm:grid-cols-6">
-                {/* Date de consignation */}
-                <div className="sm:col-span-6">
-                  <label htmlFor="date_consignation" className="block text-sm font-medium text-gray-900">
-                    Date de consignation
-                  </label>
-                  <input
-                    id="date_consignation"
-                    type="datetime-local"
-                    name="date_consignation"
-                    value={formData.date_consignation}
-                    onChange={(e) =>
-                      setFormData((prev) => ({ ...prev, date_consignation: e.target.value }))
-                    }
-                    className={`mt-2 block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline outline-1 outline-gray-300 placeholder:text-gray-400 focus:outline-2 focus:outline-indigo-600 ${
-                      isMobile ? 'h-12' : ''
-                    }`}
-                  />
-                </div>
-                {/* Déclaration */}
-                <div className="sm:col-span-6">
-                  <label className="block text-sm font-medium text-gray-900">Déclaration</label>
-                  <p className="mt-2 text-sm text-gray-600">
-                    Je soussigné M. {selectedDemandeur ? selectedDemandeur.label : "N/A"} de l'entreprise{" "}
-                    {selectedEntreprise ? selectedEntreprise.label : "N/A"} chargé des travaux ci-dessus désignés,
-                    déclare avoir reçu le présent avis de consignation et pris connaissance des prescriptions de sécurité.
-                  </p>
-                </div>
-                {/* Signature d'attestation */}
-                <div className="sm:col-span-6">
-                  <label className="block text-sm font-medium text-gray-900">Signature d'attestation</label>
-                  <div className="w-full border border-gray-300 rounded-lg overflow-hidden" style={{ touchAction: 'none' }}>
-                    <canvas
-                      ref={sigPadAttestation}
-                      className="w-full bg-white touch-none"
-                      style={{ touchAction: 'none' }}
-                    ></canvas>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={clearSignatureAttestation}
-                    className={`mt-2 rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 transition-colors ${
-                      isMobile ? 'w-full h-12' : ''
-                    }`}
-                  >
-                    Effacer la signature
-                  </button>
-                  {errors.signature_attestation && (
-                    <p className="mt-2 text-sm text-red-600">{errors.signature_attestation.join(", ")}</p>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Boutons de navigation */}
-          {currentStep === 1 && (
-            <div className={`mt-8 pt-6 border-t border-gray-200 flex items-center ${
-              isMobile ? 'flex-col gap-3' : 'justify-between gap-4'
-            }`}>
-              <button
-                type="button"
-                onClick={handleNextStep}
-                className={`rounded-lg bg-indigo-600 px-6 py-3 font-semibold text-white shadow-sm hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-colors ${
-                  isMobile ? 'w-full h-12 order-1 text-base' : 'text-sm'
-                }`}
-              >
-                Suivant
-              </button>
-              <button
-                type="button"
-                onClick={handleReturn}
-                className={`rounded-lg bg-gray-200 px-6 py-3 font-semibold text-gray-900 shadow-sm hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2 transition-colors ${
-                  isMobile ? 'w-full h-12 order-2 text-base' : 'text-sm'
-                }`}
-              >
-                Retour
-              </button>
-            </div>
-          )}
-
-{currentStep !== 1 && (
-  <div className={`mt-8 pt-6 border-t border-gray-200 flex items-center ${
-    isMobile ? 'flex-col gap-3' : 'justify-end gap-4'
-  }`}>
-    {/* Primary Action Button - Always first on mobile */}
-    {currentStep === 4 ? (
-      <button
-        type="submit"
-        className={`rounded-lg bg-indigo-600 px-6 py-3 font-semibold text-white shadow-sm hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-colors ${
-          isMobile ? 'w-full h-12 order-1 text-base' : 'text-sm'
-        }`}
-      >
-        Envoyer
-      </button>
-    ) : currentStep < 4 && currentStep > 1 ? (
-      <button
-        type="button"
-        onClick={handleNextStep}
-        className={`rounded-lg bg-indigo-600 px-6 py-3 font-semibold text-white shadow-sm hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-colors ${
-          isMobile ? 'w-full h-12 order-1 text-base' : 'text-sm'
-        }`}
-      >
-        Suivant
-      </button>
-    ) : null}
-
-    {/* Secondary Action - Planified button for step 3 */}
-    {currentStep === 3 && (
-      <button
-        type="button"
-        onClick={handlePlanifiedClick}
-        className={`rounded-lg bg-green-600 px-6 py-3 font-semibold text-white shadow-sm hover:bg-green-500 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-colors ${
-          isMobile ? 'w-full h-12 order-2 text-base' : 'text-sm'
-        }`}
-      >
-        Ajouter comme planifié
-      </button>
-    )}
-
-    {/* Back Button - Always last on mobile */}
-    {currentStep > 1 && (
-      <button
-        type="button"
-        onClick={handlePreviousStep}
-        className={`rounded-lg bg-gray-200 px-6 py-3 font-semibold text-gray-900 shadow-sm hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2 transition-colors ${
-          isMobile ? 'w-full h-12 order-3 text-base' : 'text-sm'
-        }`}
-      >
-        Précédent
-      </button>
-    )}
-  </div>
-)}
-
-            </form>
-          </div>
+              </CardContent>
+            </Card>
+          </form>
         </div>
       </div>
+
+      {/* Time Dialog Modal */}
       {showTimeDialog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className={`w-full rounded-lg bg-white shadow-lg ${
-            isMobile ? 'max-w-sm p-4' : 'max-w-md p-6'
-          }`}>
-            <h3 className="text-xl font-bold mb-4">Sélectionnez la date et l'heure</h3>
-            <input
-              type="datetime-local"
-              value={datetimeValue}
-              onChange={(e) => setDatetimeValue(e.target.value)}
-              className={`w-full border p-2 rounded mb-4 focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
-                isMobile ? 'h-12' : ''
-              }`}
-            />
-            <div className={`flex gap-4 ${
-              isMobile ? 'flex-col' : 'justify-end'
-            }`}>
-              <button
-                type="button"
-                onClick={() => setShowTimeDialog(false)}
-                className={`px-4 py-2 rounded bg-gray-300 hover:bg-gray-400 transition-colors ${
-                  isMobile ? 'w-full h-12 order-2' : ''
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+          <Card className={`w-full shadow-2xl border-0 ${isMobile ? 'max-w-sm' : 'max-w-md'}`}>
+            <CardHeader className="pb-4">
+              <CardTitle className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                <CalendarDaysIcon className="h-5 w-5 text-amber-600" />
+                Planifier la consignation
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-gray-600">
+                Sélectionnez la date et l'heure pour planifier cette consignation.
+              </p>
+              <input
+                type="datetime-local"
+                value={datetimeValue}
+                onChange={(e) => setDatetimeValue(e.target.value)}
+                className={`w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900 transition-all focus:outline-none focus:ring-2 focus:ring-amber-500 hover:border-gray-400 ${
+                  isMobile ? 'h-12 text-base' : 'text-sm'
                 }`}
-              >
-                Annuler
-              </button>
-              <button
-                type="button"
-                onClick={handleDatetimeConfirm}
-                className={`px-4 py-2 rounded bg-green-600 text-white hover:bg-green-700 transition-colors ${
-                  isMobile ? 'w-full h-12 order-1' : ''
-                }`}
-              >
-                Confirmer
-              </button>
-            </div>
-          </div>
+              />
+              <div className={`flex gap-3 pt-2 ${isMobile ? 'flex-col' : 'justify-end'}`}>
+                <button
+                  type="button"
+                  onClick={() => setShowTimeDialog(false)}
+                  className={`flex items-center justify-center gap-2 px-4 py-2.5 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium ${
+                    isMobile ? 'w-full h-11 order-2' : ''
+                  }`}
+                >
+                  Annuler
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDatetimeConfirm}
+                  className={`flex items-center justify-center gap-2 px-4 py-2.5 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors font-medium ${
+                    isMobile ? 'w-full h-11 order-1' : ''
+                  }`}
+                >
+                  <CheckCircleIcon className="h-5 w-5" />
+                  Confirmer
+                </button>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       )}
     </>
@@ -1413,5 +1595,3 @@ if (selectedDemandeur && selectedDemandeur.__isNew__) {
 };
 
 export default AddConsignation;
-
-//firebase hosting:channel:deploy just-testing

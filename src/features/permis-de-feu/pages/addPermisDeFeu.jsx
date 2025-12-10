@@ -5,12 +5,258 @@ import { useNavigate, useParams } from "react-router-dom";
 import SignaturePad from "signature_pad";
 import { useAuth } from "@/features/auth/utils/auth-context";
 import { useIsMobile } from "@/hooks/use-mobile";
+import {
+  Zap,
+  Scissors,
+  Flame,
+  Disc3,
+  Wind,
+  Workflow,
+  Users,
+  Eye,
+  UserCheck,
+  ClipboardCheck,
+  Shield,
+  Brush,
+  Droplets,
+  Construction,
+  Lock,
+  Fan,
+  EyeOff,
+  Bell,
+  LifeBuoy,
+  AlertTriangle,
+  Radiation,
+  Siren,
+  Package,
+  ShieldCheck,
+  Drill,
+  SprayCan,
+  ArrowRightToLine,
+  Paintbrush,
+} from "lucide-react";
+
+// Combined Icon Components for specificity
+const CombinedIcon = ({ Icon1, Icon2, className, color1, color2 }) => (
+  <div className={`relative ${className}`}>
+    <Icon1 className={`w-full h-full ${color1 || ''}`} />
+    <Icon2 className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 ${color2 || ''}`} fill="currentColor" />
+  </div>
+);
+
+// Sparks component for grinding/welding - scattered randomly like real sparks
+const TenSparks = ({ className }) => (
+  <svg viewBox="0 0 24 24" className={className} fill="currentColor">
+    {/* Sparks scattered randomly - right, down, left directions with lots of spacing */}
+    <circle cx="6" cy="12" r="2.3" />
+    <circle cx="12" cy="8" r="2" />
+    <circle cx="16" cy="5" r="1.8" />
+    <circle cx="20" cy="7" r="1.6" />
+    <circle cx="9" cy="17" r="2.1" />
+    <circle cx="4" cy="16" r="1.9" />
+    <circle cx="15" cy="14" r="1.9" />
+    <circle cx="19" cy="12" r="1.7" />
+    <circle cx="11" cy="20" r="2" />
+    <circle cx="22" cy="15" r="1.5" />
+  </svg>
+);
+
+// Three sparks component (keep for dust icon only)
+const ThreeSparks = ({ className }) => (
+  <svg viewBox="0 0 24 24" className={className} fill="currentColor">
+    <circle cx="5" cy="8" r="4" />
+    <circle cx="14" cy="5" r="3" />
+    <circle cx="20" cy="12" r="4" />
+  </svg>
+);
+
+// Arrow with 10m indicator integrated
+const ArrowWith10m = ({ className }) => (
+  <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    {/* Arrow line - centered */}
+    <line x1="2" y1="10" x2="14" y2="10" />
+    {/* Arrow head - centered */}
+    <polyline points="14 10 11 7 11 13 14 10" fill="currentColor" />
+    {/* Vertical line at end - centered */}
+    <line x1="17" y1="5" x2="17" y2="15" strokeWidth="2.5" />
+    {/* 10m text - positioned at bottom middle */}
+    <text x="8" y="22" fontSize="6" fontWeight="bold" fill="currentColor" stroke="none" textAnchor="middle">10m</text>
+  </svg>
+);
+
+// Paintbrush with handle (pen as handle)
+const BrushWithHandle = ({ className }) => (
+  <div className={`relative ${className}`}>
+    <Paintbrush className="w-full h-full" />
+    <svg viewBox="0 0 24 24" className="absolute -bottom-0.5 -right-0.5 w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2">
+      <line x1="6" y1="18" x2="18" y2="6" />
+      <circle cx="18" cy="6" r="2" fill="currentColor" />
+    </svg>
+  </div>
+);
+
+// Alert Triangle with exclamation mark visible - solid background
+const AlertTriangleWithMark = ({ className, color }) => (
+  <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" fill={color || "currentColor"} stroke={color || "currentColor"} />
+    <line x1="12" y1="9" x2="12" y2="13" strokeWidth="2.5" stroke="black" />
+    <circle cx="12" cy="17" r="1" fill="black" stroke="none" />
+  </svg>
+);
+
+// Eye with detailed outline - solid background
+const EyeDetailed = ({ className, color }) => (
+  <svg viewBox="0 0 24 24" className={className} fill="white" stroke={color || "currentColor"} strokeWidth="2">
+    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" fill={color || "currentColor"} />
+    <circle cx="12" cy="12" r="3" strokeWidth="2" fill="white" stroke="black" />
+    <circle cx="12" cy="12" r="1.5" fill="black" stroke="none" />
+  </svg>
+);
+
+// Specific combined icons
+const ElectricWeldingIcon = ({ className }) => (
+  <CombinedIcon Icon1={Drill} Icon2={Zap} className={className} color1="text-orange-500" color2="text-yellow-400" />
+);
+
+const ElectricCuttingIcon = ({ className }) => (
+  <CombinedIcon Icon1={Scissors} Icon2={Zap} className={className} color1="text-orange-500" color2="text-yellow-400" />
+);
+
+const TorchWeldingIcon = ({ className }) => (
+  <CombinedIcon Icon1={Drill} Icon2={Flame} className={className} color1="text-orange-500" color2="text-red-500" />
+);
+
+const TorchCuttingIcon = ({ className }) => (
+  <CombinedIcon Icon1={Scissors} Icon2={Flame} className={className} color1="text-orange-500" color2="text-red-500" />
+);
+
+const BlowtorchIcon = ({ className }) => (
+  <CombinedIcon Icon1={SprayCan} Icon2={Flame} className={className} color1="text-orange-500" color2="text-red-500" />
+);
+
+const GrindingIcon = ({ className }) => (
+  <CombinedIcon Icon1={Disc3} Icon2={TenSparks} className={className} color1="text-orange-500" color2="text-yellow-400" />
+);
+
+const CombustibleIcon = ({ className }) => (
+  <CombinedIcon Icon1={Package} Icon2={Flame} className={className} color1="text-red-500" color2="text-orange-500" />
+);
+
+const DustIcon = ({ className }) => (
+  <CombinedIcon Icon1={Wind} Icon2={ThreeSparks} className={className} color1="text-red-500" color2="text-gray-400" />
+);
+
+const ConveyorIcon = ({ className }) => (
+  <Workflow className={`w-5 h-5 text-red-500 ${className}`} />
+);
+
+const CoActivityIcon = ({ className }) => (
+  <div className={`relative ${className}`}>
+    <Users className="w-full h-full text-red-500" />
+    <AlertTriangleWithMark className="absolute -bottom-0.5 -right-0.5 w-3 h-3" color="#eab308" />
+  </div>
+);
+
+const FireBlanketIcon = ({ className }) => (
+  <CombinedIcon Icon1={Shield} Icon2={Flame} className={className} color1="text-blue-500" color2="text-orange-400" />
+);
+
+const FireHoseReelIcon = ({ className }) => (
+  <CombinedIcon Icon1={LifeBuoy} Icon2={Droplets} className={className} color1="text-blue-500" color2="text-blue-400" />
+);
+
+const AtexIcon = ({ className }) => (
+  <CombinedIcon Icon1={AlertTriangle} Icon2={Radiation} className={className} color1="text-blue-500" color2="text-yellow-500" />
+);
+
+const FireDetectionIcon = ({ className }) => (
+  <CombinedIcon Icon1={Siren} Icon2={Flame} className={className} color1="text-blue-500" color2="text-red-500" />
+);
+
+const ProjectionIcon = ({ className }) => (
+  <CombinedIcon Icon1={Eye} Icon2={TenSparks} className={className} color1="text-green-500" color2="text-orange-400" />
+);
+
+const HeatSupportIcon = ({ className }) => (
+  <ShieldCheck className={`w-5 h-5 text-green-500 ${className}`} />
+);
+
+const SupervisorIcon = ({ className }) => (
+  <div className={`relative ${className}`}>
+    <UserCheck className="w-full h-full text-green-500" />
+    <EyeDetailed className="absolute -bottom-0.5 -right-0.5 w-3 h-3" color="#60a5fa" />
+  </div>
+);
+
+// Simple icon wrappers
+const CheckEquipmentIcon = ({ className }) => <ClipboardCheck className={`w-5 h-5 text-blue-500 ${className}`} />;
+const SweepIcon = ({ className }) => <Paintbrush className={`w-5 h-5 text-blue-500 ${className}`} />;
+const WaterIcon = ({ className }) => <Droplets className={`w-5 h-5 text-blue-500 ${className}`} />;
+const MarkZoneIcon = ({ className }) => <Construction className={`w-5 h-5 text-blue-500 ${className}`} />;
+const LockoutIcon = ({ className }) => <Lock className={`w-5 h-5 text-blue-500 ${className}`} />;
+const DegasIcon = ({ className }) => <Fan className={`w-5 h-5 text-blue-500 ${className}`} />;
+const BlockOpeningsIcon = ({ className }) => <EyeOff className={`w-5 h-5 text-blue-500 ${className}`} />;
+const AlarmIcon = ({ className }) => <Bell className={`w-5 h-5 text-blue-500 ${className}`} />;
+const DistanceIcon = ({ className }) => (
+  <ArrowWith10m className={`w-5 h-5 text-blue-500 ${className}`} />
+);
+
+// Icon mappings by label (partial match)
+const sourceChaleurIcons = {
+  "soudure électrique": ElectricWeldingIcon,
+  "découpage électrique": ElectricCuttingIcon,
+  "soudure au chalumeau": TorchWeldingIcon,
+  "découpage au chalumeau": TorchCuttingIcon,
+  "lampe à souder": BlowtorchIcon,
+  "meulage": GrindingIcon,
+};
+
+const facteursAggravantsIcons = {
+  "matières combustibles": CombustibleIcon,
+  "poussières": DustIcon,
+  "convoyeurs": ConveyorIcon,
+  "co-activité": CoActivityIcon,
+};
+
+const mesuresAvantIcons = {
+  "vérifier": CheckEquipmentIcon,
+  "eloigner": DistanceIcon,
+  "éloigner": DistanceIcon,
+  "10 mètres": DistanceIcon,
+  "balayer": SweepIcon,
+  "arroser": WaterIcon,
+  "baliser": MarkZoneIcon,
+  "consigner": LockoutIcon,
+  "dégazage": DegasIcon,
+  "aveugler": BlockOpeningsIcon,
+  "alarme": AlarmIcon,
+  "ria": FireHoseReelIcon,
+  "atex": AtexIcon,
+  "détection": FireDetectionIcon,
+};
+
+const mesuresPendantIcons = {
+  "projections": ProjectionIcon,
+  "supports": HeatSupportIcon,
+  "surveillant": SupervisorIcon,
+};
+
+// Helper to find matching icon component
+const getIconForLabel = (label, iconMap, DefaultIcon) => {
+  const lowerLabel = label.toLowerCase();
+  for (const [key, IconComp] of Object.entries(iconMap)) {
+    if (lowerLabel.includes(key)) {
+      return IconComp;
+    }
+  }
+  return DefaultIcon;
+};
 
 const AddPermisFeu = () => {
   const { id } = useParams(); // Get permit ID from URL for editing
   const isEditing = Boolean(id);
   const isMobile = useIsMobile();
-  
+
   // Refs for Signature Canvases
   const sigPadSurveillance = useRef(null);
   const signaturePadSurveillance = useRef(null);
@@ -26,7 +272,7 @@ const AddPermisFeu = () => {
   const [loadedPermisData, setLoadedPermisData] = useState(null); // Store loaded permit data
   const [errors, setErrors] = useState([]);
   const [fieldErrors, setFieldErrors] = useState({}); // Field-specific errors
-  
+
   // Refs for form sections (for more precise scrolling)
   const horairesRef = useRef(null);
   const surveillanceRef = useRef(null);
@@ -76,7 +322,7 @@ const AddPermisFeu = () => {
   const loadPermitData = async (permitId) => {
     try {
       setIsLoadingPermit(true);
-      
+
       // Fetch main permit data
       const { data: permitData, error: permitError } = await supabase
         .from("permis_de_feu")
@@ -341,11 +587,11 @@ const AddPermisFeu = () => {
       newFieldErrors.selectedSurveillance = "Veuillez sélectionner un responsable";
       if (!firstErrorRef) firstErrorRef = surveillanceRef;
     }
-    
-if (!selectedTravauxPerson) {
-  newFieldErrors.selectedTravauxPerson = "Veuillez sélectionner une personne";
-  if (!firstErrorRef) firstErrorRef = travauxRef;
-}
+
+    if (!selectedTravauxPerson) {
+      newFieldErrors.selectedTravauxPerson = "Veuillez sélectionner une personne";
+      if (!firstErrorRef) firstErrorRef = travauxRef;
+    }
     if (!selectedEntrepriseSite) {
       newFieldErrors.selectedEntrepriseSite = "Veuillez sélectionner une entreprise";
       if (!firstErrorRef) firstErrorRef = siteResponsableRef;
@@ -368,12 +614,12 @@ if (!selectedTravauxPerson) {
     // Check if both signatures are provided
     const hasSurvSignature = signaturePadSurveillance.current && !signaturePadSurveillance.current.isEmpty();
     const hasSiteSignature = signaturePadSite.current && !signaturePadSite.current.isEmpty();
-    
+
     if (!hasSurvSignature) {
       newFieldErrors.signatureSurveillance = "Veuillez signer ce champ";
       if (!firstErrorRef) firstErrorRef = surveillanceRef;
     }
-    
+
     if (!hasSiteSignature) {
       newFieldErrors.signatureSite = "Veuillez signer ce champ";
       if (!firstErrorRef) firstErrorRef = siteResponsableRef;
@@ -390,18 +636,18 @@ if (!selectedTravauxPerson) {
     }
 
     setFieldErrors(newFieldErrors);
-    
+
     // Auto-scroll to first error section if validation fails
     if (Object.keys(newFieldErrors).length > 0 && firstErrorRef?.current) {
       setTimeout(() => {
-        firstErrorRef.current.scrollIntoView({ 
-          behavior: 'smooth', 
+        firstErrorRef.current.scrollIntoView({
+          behavior: 'smooth',
           block: 'center',
           inline: 'nearest'
         });
       }, 100);
     }
-    
+
     return Object.keys(newFieldErrors).length === 0;
   };
 
@@ -418,7 +664,7 @@ if (!selectedTravauxPerson) {
 
   const handleSurveillanceChange = async (option) => {
     clearFieldError('selectedSurveillance');
-    
+
     if (option && option.__isNew__) {
       try {
         const { data, error } = await supabase
@@ -426,9 +672,9 @@ if (!selectedTravauxPerson) {
           .insert({ name: option.label, entreprise_id: entrepriseUtilisatrice.id })
           .select()
           .maybeSingle();
-        
+
         if (error) throw error;
-        
+
         if (data) {
           const newOption = { value: data.id, label: data.name, entreprise_id: data.entreprise_id };
           setSelectedSurveillance(newOption);
@@ -444,57 +690,57 @@ if (!selectedTravauxPerson) {
   };
 
 
-const handleTravauxPersonChange = async (option) => {
-  clearFieldError('selectedTravauxPerson');
-  
-  if (option && option.__isNew__) {
-    if (!selectedEntrepriseSite) {
-      alert("Veuillez d'abord sélectionner une entreprise.");
-      return;
-    }
-    
-    try {
-      const { data, error } = await supabase
-        .from("persons")
-        .insert({ name: option.label, entreprise_id: selectedEntrepriseSite.value })
-        .select()
-        .maybeSingle();
-      
-      if (error) throw error;
-      
-      if (data) {
-        const newOption = { value: data.id, label: data.name, entreprise_id: data.entreprise_id };
-        setSelectedTravauxPerson(newOption);
-        setPersonOptions((prev) => [...prev, newOption]);
-      }
-    } catch (error) {
-      console.error("Error inserting new travaux person:", error);
-      alert(`Erreur lors de l'ajout de la personne: ${error.message}`);
-    }
-  } else {
-    setSelectedTravauxPerson(option);
-  }
-};
+  const handleTravauxPersonChange = async (option) => {
+    clearFieldError('selectedTravauxPerson');
 
-
-  const handleSiteResponsableChange = async (option) => {
-    clearFieldError('selectedSiteResponsable');
-    
     if (option && option.__isNew__) {
       if (!selectedEntrepriseSite) {
         alert("Veuillez d'abord sélectionner une entreprise.");
         return;
       }
-      
+
       try {
         const { data, error } = await supabase
           .from("persons")
           .insert({ name: option.label, entreprise_id: selectedEntrepriseSite.value })
           .select()
           .maybeSingle();
-        
+
         if (error) throw error;
-        
+
+        if (data) {
+          const newOption = { value: data.id, label: data.name, entreprise_id: data.entreprise_id };
+          setSelectedTravauxPerson(newOption);
+          setPersonOptions((prev) => [...prev, newOption]);
+        }
+      } catch (error) {
+        console.error("Error inserting new travaux person:", error);
+        alert(`Erreur lors de l'ajout de la personne: ${error.message}`);
+      }
+    } else {
+      setSelectedTravauxPerson(option);
+    }
+  };
+
+
+  const handleSiteResponsableChange = async (option) => {
+    clearFieldError('selectedSiteResponsable');
+
+    if (option && option.__isNew__) {
+      if (!selectedEntrepriseSite) {
+        alert("Veuillez d'abord sélectionner une entreprise.");
+        return;
+      }
+
+      try {
+        const { data, error } = await supabase
+          .from("persons")
+          .insert({ name: option.label, entreprise_id: selectedEntrepriseSite.value })
+          .select()
+          .maybeSingle();
+
+        if (error) throw error;
+
         if (data) {
           const newOption = { value: data.id, label: data.name, entreprise_id: data.entreprise_id };
           setSelectedSiteResponsable(newOption);
@@ -511,7 +757,7 @@ const handleTravauxPersonChange = async (option) => {
 
   const handleEntrepriseChange = async (option) => {
     clearFieldError('selectedEntrepriseSite');
-    
+
     if (option && option.__isNew__) {
       try {
         const { data, error } = await supabase
@@ -519,9 +765,9 @@ const handleTravauxPersonChange = async (option) => {
           .insert({ name: option.label })
           .select()
           .maybeSingle();
-        
+
         if (error) throw error;
-        
+
         if (data) {
           const newOption = { value: data.id, label: data.name };
           setSelectedEntrepriseSite(newOption);
@@ -538,20 +784,20 @@ const handleTravauxPersonChange = async (option) => {
 
   const handleZoneChange = async (option) => {
     clearFieldError('selectedLieu');
-    
+
     if (option && option.__isNew__) {
       try {
         const { data, error } = await supabase
           .from("zones")
-          .insert({ 
+          .insert({
             name: option.label,
             site_id: 1 // Replace with actual site_id
           })
           .select()
           .maybeSingle();
-        
+
         if (error) throw error;
-        
+
         if (data) {
           const newOption = { value: data.id, label: data.name };
           setLieuOptions((prev) => [...prev, newOption]);
@@ -846,7 +1092,7 @@ const handleTravauxPersonChange = async (option) => {
           sch_id: parseInt(item),
         }));
         console.log("Inserting source chaleur:", rows);
-        
+
         const { error } = await supabase.from("pdf_sch_junction").insert(rows);
         if (error) {
           insertionErrors.push(`Sources de chaleur: ${error.message}`);
@@ -860,7 +1106,7 @@ const handleTravauxPersonChange = async (option) => {
           faggravant_id: parseInt(item),
         }));
         console.log("Inserting facteurs aggravants:", rows);
-        
+
         const { error } = await supabase.from("pdf_faggravant_junction").insert(rows);
         if (error) {
           insertionErrors.push(`Facteurs aggravants: ${error.message}`);
@@ -876,7 +1122,7 @@ const handleTravauxPersonChange = async (option) => {
           if (sel.EE && sel.EU) entrepriseValue = "BOTH";
           else if (sel.EE) entrepriseValue = "E.E";
           else if (sel.EU) entrepriseValue = "E.U";
-          
+
           avRows.push({
             pdf: permisId,
             mpa: parseInt(measureId),
@@ -884,7 +1130,7 @@ const handleTravauxPersonChange = async (option) => {
           });
         }
       }
-      
+
       if (avRows.length > 0) {
         console.log("Inserting mesures avant:", avRows);
         const { error } = await supabase.from("pdf_mpa_junction").insert(avRows);
@@ -902,7 +1148,7 @@ const handleTravauxPersonChange = async (option) => {
           if (sel.EE && sel.EU) entrepriseValue = "BOTH";
           else if (sel.EE) entrepriseValue = "E.E";
           else if (sel.EU) entrepriseValue = "E.U";
-          
+
           pnRows.push({
             pdf: permisId,
             mpp: parseInt(measureId),
@@ -910,7 +1156,7 @@ const handleTravauxPersonChange = async (option) => {
           });
         }
       }
-      
+
       if (pnRows.length > 0) {
         console.log("Inserting mesures pendant:", pnRows);
         const { error } = await supabase.from("pdf_mpp_junction").insert(pnRows);
@@ -943,10 +1189,10 @@ const handleTravauxPersonChange = async (option) => {
   // --------------------------
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     // Clear previous field errors
     setFieldErrors({});
-    
+
     // Validate form
     if (!validateForm()) {
       return;
@@ -968,7 +1214,7 @@ const handleTravauxPersonChange = async (option) => {
   // --------------------------
   const handleSaveDraft = async () => {
     setIsSavingDraft(true);
-    
+
     try {
       await savePermis("planified");
     } catch (error) {
@@ -1028,519 +1274,534 @@ const handleTravauxPersonChange = async (option) => {
             )}
           </div>
 
-        {/* Horaires */}
-        <section ref={horairesRef} className="mb-6 sm:mb-8">
-          <h2 className="text-lg sm:text-xl font-semibold mb-4 text-gray-900">Horaires</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-            <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-700">
-                Date et Heure de début <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="datetime-local"
-                className={`w-full h-12 sm:h-10 px-4 sm:px-3 py-2 text-base sm:text-sm border rounded-md transition-colors ${
-                  fieldErrors.heureDebut ? 'border-red-500 bg-red-50 focus:border-red-500' : 'border-gray-300 focus:border-blue-500'
-                } focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-20`}
-                value={heureDebut}
-                onChange={(e) => {
-                  setHeureDebut(e.target.value);
-                  clearFieldError('heureDebut');
-                }}
-              />
-              {fieldErrors.heureDebut && (
-                <p className="text-sm text-red-600">{fieldErrors.heureDebut}</p>
-              )}
-            </div>
-            <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-700">
-                Date et Heure de fin <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="datetime-local"
-                className={`w-full h-12 sm:h-10 px-4 sm:px-3 py-2 text-base sm:text-sm border rounded-md transition-colors ${
-                  fieldErrors.heureFin ? 'border-red-500 bg-red-50 focus:border-red-500' : 'border-gray-300 focus:border-blue-500'
-                } focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-20`}
-                value={heureFin}
-                onChange={(e) => {
-                  setHeureFin(e.target.value);
-                  clearFieldError('heureFin');
-                }}
-              />
-              {fieldErrors.heureFin && (
-                <p className="text-sm text-red-600">{fieldErrors.heureFin}</p>
-              )}
-            </div>
-            <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-700">Début pause déjeuner</label>
-              <input
-                type="datetime-local"
-                className="w-full h-12 sm:h-10 px-4 sm:px-3 py-2 text-base sm:text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-20 focus:border-blue-500 transition-colors"
-                value={dejeunerDebut}
-                onChange={(e) => setDejeunerDebut(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-700">Fin pause déjeuner</label>
-              <input
-                type="datetime-local"
-                className="w-full h-12 sm:h-10 px-4 sm:px-3 py-2 text-base sm:text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-20 focus:border-blue-500 transition-colors"
-                value={dejeunerFin}
-                onChange={(e) => setDejeunerFin(e.target.value)}
-              />
-            </div>
-          </div>
-        </section>
-
-        {/* Responsable de la surveillance */}
-        <section ref={surveillanceRef} className="mb-8">
-          <h2 className="text-xl font-semibold mb-4">Responsable de la surveillance</h2>
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700">
-              Choix (E.E / E.U) <span className="text-red-500">*</span>
-            </label>
-            <div className="mt-1">
-              <label className="mr-4 inline-flex items-center">
+          {/* Horaires */}
+          <section ref={horairesRef} className="mb-6 sm:mb-8">
+            <h2 className="text-lg sm:text-xl font-semibold mb-4 text-gray-900">Horaires</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-gray-700">
+                  Date et Heure de début <span className="text-red-500">*</span>
+                </label>
                 <input
-                  type="radio"
-                  name="surveillance_choice"
-                  className="form-radio"
-                  value="EE"
-                  checked={choixEntreprise === "EE"}
+                  type="datetime-local"
+                  className={`w-full h-12 sm:h-10 px-4 sm:px-3 py-2 text-base sm:text-sm border rounded-md transition-colors ${fieldErrors.heureDebut ? 'border-red-500 bg-red-50 focus:border-red-500' : 'border-gray-300 focus:border-blue-500'
+                    } focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-20`}
+                  value={heureDebut}
                   onChange={(e) => {
-                    setChoixEntreprise(e.target.value);
-                    clearFieldError('choixEntreprise');
+                    setHeureDebut(e.target.value);
+                    clearFieldError('heureDebut');
                   }}
                 />
-                <span className="ml-2">E.E</span>
-              </label>
-              <label className="inline-flex items-center">
+                {fieldErrors.heureDebut && (
+                  <p className="text-sm text-red-600">{fieldErrors.heureDebut}</p>
+                )}
+              </div>
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-gray-700">
+                  Date et Heure de fin <span className="text-red-500">*</span>
+                </label>
                 <input
-                  type="radio"
-                  name="surveillance_choice"
-                  className="form-radio"
-                  value="EU"
-                  checked={choixEntreprise === "EU"}
+                  type="datetime-local"
+                  className={`w-full h-12 sm:h-10 px-4 sm:px-3 py-2 text-base sm:text-sm border rounded-md transition-colors ${fieldErrors.heureFin ? 'border-red-500 bg-red-50 focus:border-red-500' : 'border-gray-300 focus:border-blue-500'
+                    } focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-20`}
+                  value={heureFin}
                   onChange={(e) => {
-                    setChoixEntreprise(e.target.value);
-                    clearFieldError('choixEntreprise');
+                    setHeureFin(e.target.value);
+                    clearFieldError('heureFin');
                   }}
                 />
-                <span className="ml-2">E.U</span>
-              </label>
+                {fieldErrors.heureFin && (
+                  <p className="text-sm text-red-600">{fieldErrors.heureFin}</p>
+                )}
+              </div>
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-gray-700">Début pause déjeuner</label>
+                <input
+                  type="datetime-local"
+                  className="w-full h-12 sm:h-10 px-4 sm:px-3 py-2 text-base sm:text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-20 focus:border-blue-500 transition-colors"
+                  value={dejeunerDebut}
+                  onChange={(e) => setDejeunerDebut(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-gray-700">Fin pause déjeuner</label>
+                <input
+                  type="datetime-local"
+                  className="w-full h-12 sm:h-10 px-4 sm:px-3 py-2 text-base sm:text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-20 focus:border-blue-500 transition-colors"
+                  value={dejeunerFin}
+                  onChange={(e) => setDejeunerFin(e.target.value)}
+                />
+              </div>
             </div>
-            {fieldErrors.choixEntreprise && (
-              <p className="mt-1 text-sm text-red-600">{fieldErrors.choixEntreprise}</p>
-            )}
-          </div>
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700">
-              Nom du responsable <span className="text-red-500">*</span>
-            </label>
-            <CreatableSelect
-              options={filteredPersonOptionsForSurveillance}
-              value={selectedSurveillance}
-              onChange={handleSurveillanceChange}
-              placeholder="Sélectionnez ou créez un responsable"
-              isDisabled={isSubmitting || isSavingDraft}
-              styles={{
-                control: (base) => ({
-                  ...base,
-                  borderColor: fieldErrors.selectedSurveillance ? '#ef4444' : base.borderColor,
-                  backgroundColor: fieldErrors.selectedSurveillance ? '#fef2f2' : base.backgroundColor,
-                })
-              }}
-            />
-            {fieldErrors.selectedSurveillance && (
-              <p className="mt-1 text-sm text-red-600">{fieldErrors.selectedSurveillance}</p>
-            )}
-          </div>
-          <div className="mb-4 space-y-2">
-            <label className="block text-sm font-medium text-gray-700">
-              Signature du responsable <span className="text-red-500">*</span>
-            </label>
-            <div className={`border-2 border-dashed rounded-lg p-2 bg-gray-50 touch-manipulation ${
-              fieldErrors.signatureSurveillance ? 'border-red-300 bg-red-50' : 'border-gray-300'
-            }`}>
-              <canvas
-                ref={sigPadSurveillance}
-                className="w-full border border-gray-200 rounded bg-white touch-none block"
-                style={{
-                  touchAction: 'none',
-                  maxWidth: '100%',
-                  height: 'auto'
+          </section>
+
+          {/* Responsable de la surveillance */}
+          <section ref={surveillanceRef} className="mb-8">
+            <h2 className="text-xl font-semibold mb-4">Responsable de la surveillance</h2>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700">
+                Choix (E.E / E.U) <span className="text-red-500">*</span>
+              </label>
+              <div className="mt-1">
+                <label className="mr-4 inline-flex items-center">
+                  <input
+                    type="radio"
+                    name="surveillance_choice"
+                    className="form-radio"
+                    value="EE"
+                    checked={choixEntreprise === "EE"}
+                    onChange={(e) => {
+                      setChoixEntreprise(e.target.value);
+                      clearFieldError('choixEntreprise');
+                    }}
+                  />
+                  <span className="ml-2">E.E</span>
+                </label>
+                <label className="inline-flex items-center">
+                  <input
+                    type="radio"
+                    name="surveillance_choice"
+                    className="form-radio"
+                    value="EU"
+                    checked={choixEntreprise === "EU"}
+                    onChange={(e) => {
+                      setChoixEntreprise(e.target.value);
+                      clearFieldError('choixEntreprise');
+                    }}
+                  />
+                  <span className="ml-2">E.U</span>
+                </label>
+              </div>
+              {fieldErrors.choixEntreprise && (
+                <p className="mt-1 text-sm text-red-600">{fieldErrors.choixEntreprise}</p>
+              )}
+            </div>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700">
+                Nom du responsable <span className="text-red-500">*</span>
+              </label>
+              <CreatableSelect
+                options={filteredPersonOptionsForSurveillance}
+                value={selectedSurveillance}
+                onChange={handleSurveillanceChange}
+                placeholder="Sélectionnez ou créez un responsable"
+                isDisabled={isSubmitting || isSavingDraft}
+                styles={{
+                  control: (base) => ({
+                    ...base,
+                    borderColor: fieldErrors.selectedSurveillance ? '#ef4444' : base.borderColor,
+                    backgroundColor: fieldErrors.selectedSurveillance ? '#fef2f2' : base.backgroundColor,
+                  })
                 }}
               />
+              {fieldErrors.selectedSurveillance && (
+                <p className="mt-1 text-sm text-red-600">{fieldErrors.selectedSurveillance}</p>
+              )}
             </div>
-            <button
-              type="button"
-              onClick={clearSignatureSurveillance}
-              className="w-full sm:w-auto px-4 py-2 text-sm text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 rounded-md transition-colors duration-200 font-medium"
-              disabled={isSubmitting || isSavingDraft}
-            >
-              Effacer la signature
-            </button>
-            {fieldErrors.signatureSurveillance && (
-              <p className="text-sm text-red-600">{fieldErrors.signatureSurveillance}</p>
-            )}
-          </div>
-        </section>
-
-        {/* Travaux réalisés par */}
-        <section ref={travauxRef} className="mb-8">
-          <h2 className="text-xl font-semibold mb-4">Travaux réalisés par</h2>
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700">
-              Nom de la personne <span className="text-red-500">*</span>
-            </label>
-            <CreatableSelect
-              options={personOptions}
-              value={selectedTravauxPerson}
-onChange={handleTravauxPersonChange}
-              placeholder="Sélectionnez ou créez un responsable"
-              isDisabled={isSubmitting || isSavingDraft}
-styles={{
-  control: (base) => ({
-    ...base,
-    borderColor: fieldErrors.selectedTravauxPerson ? '#ef4444' : base.borderColor, // ✅ Correct field
-    backgroundColor: fieldErrors.selectedTravauxPerson ? '#fef2f2' : base.backgroundColor, // ✅ Correct field
-  })
-}}
-            />
-            {fieldErrors.selectedTravauxPerson && (
-  <p className="mt-1 text-sm text-red-600">{fieldErrors.selectedTravauxPerson}</p>
-)}
-          </div>
-        </section>
-
-        {/* Responsable du site / délégation */}
-        <section ref={siteResponsableRef} className="mb-8">
-          <h2 className="text-xl font-semibold mb-4">Responsable du site / délégation</h2>
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700">
-              Entreprise (site) <span className="text-red-500">*</span>
-            </label>
-            <CreatableSelect
-              options={entrepriseOptions}
-              value={selectedEntrepriseSite}
-              onChange={handleEntrepriseChange}
-              placeholder="Sélectionnez ou créez une entreprise"
-              isDisabled={isSubmitting || isSavingDraft}
-styles={{
-  control: (base) => ({
-    ...base,
-    borderColor: fieldErrors.selectedEntrepriseSite ? '#ef4444' : base.borderColor, // ✅ Correct field
-    backgroundColor: fieldErrors.selectedEntrepriseSite ? '#fef2f2' : base.backgroundColor, // ✅ Correct field
-  })
-}}
-            />
-            {fieldErrors.selectedEntrepriseSite && (
-              <p className="mt-1 text-sm text-red-600">{fieldErrors.selectedEntrepriseSite}</p>
-            )}
-          </div>
-
-
-
-
-
-{/* ADD THIS: Missing person selection field */}
-  <div className="mb-4">
-    <label className="block text-sm font-medium text-gray-700">
-      Nom du responsable <span className="text-red-500">*</span>
-    </label>
-    <CreatableSelect
-      options={personOptions.filter(p => p.entreprise_id === selectedEntrepriseSite?.value)}
-      value={selectedSiteResponsable}
-      onChange={handleSiteResponsableChange}
-      placeholder="Sélectionnez ou créez un responsable"
-      isDisabled={isSubmitting || isSavingDraft || !selectedEntrepriseSite}
-      styles={{
-        control: (base) => ({
-          ...base,
-          borderColor: fieldErrors.selectedSiteResponsable ? '#ef4444' : base.borderColor,
-          backgroundColor: fieldErrors.selectedSiteResponsable ? '#fef2f2' : base.backgroundColor,
-        })
-      }}
-    />
-    {fieldErrors.selectedSiteResponsable && (
-      <p className="mt-1 text-sm text-red-600">{fieldErrors.selectedSiteResponsable}</p>
-    )}
-  </div>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-          <div className="mb-4 space-y-2">
-            <label className="block text-sm font-medium text-gray-700">
-              Signature <span className="text-red-500">*</span>
-            </label>
-            <div className={`border-2 border-dashed rounded-lg p-2 bg-gray-50 touch-manipulation ${
-              fieldErrors.signatureSite ? 'border-red-300 bg-red-50' : 'border-gray-300'
-            }`}>
-              <canvas
-                ref={sigPadSite}
-                className="w-full border border-gray-200 rounded bg-white touch-none block"
-                style={{
-                  touchAction: 'none',
-                  maxWidth: '100%',
-                  height: 'auto'
-                }}
-              />
-            </div>
-            <button
-              type="button"
-              onClick={clearSignatureSite}
-              className="w-full sm:w-auto px-4 py-2 text-sm text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 rounded-md transition-colors duration-200 font-medium"
-              disabled={isSubmitting || isSavingDraft}
-            >
-              Effacer la signature
-            </button>
-            {fieldErrors.signatureSite && (
-              <p className="text-sm text-red-600">{fieldErrors.signatureSite}</p>
-            )}
-          </div>
-        </section>
-
-        {/* Lieu et Opération */}
-        <section ref={lieuRef} className="mb-8">
-          <h2 className="text-xl font-semibold mb-4">Localisation & Opération</h2>
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700">
-              Localisation / Lieu <span className="text-red-500">*</span>
-            </label>
-            <CreatableSelect
-              options={lieuOptions}
-              value={selectedLieu}
-              onChange={handleZoneChange}
-              placeholder="Sélectionnez ou créez une zone..."
-              isDisabled={isSubmitting || isSavingDraft}
-              styles={{
-                control: (base) => ({
-                  ...base,
-                  borderColor: fieldErrors.selectedLieu ? '#ef4444' : base.borderColor,
-                  backgroundColor: fieldErrors.selectedLieu ? '#fef2f2' : base.backgroundColor,
-                })
-              }}
-            />
-            {fieldErrors.selectedLieu && (
-              <p className="mt-1 text-sm text-red-600">{fieldErrors.selectedLieu}</p>
-            )}
-          </div>
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700">
-              Opération à effectuer <span className="text-red-500">*</span>
-            </label>
-            <textarea
-              rows="3"
-              placeholder="Description de l'opération"
-              className={`mt-1 block w-full border rounded p-2 ${
-                fieldErrors.operationDescription ? 'border-red-500 bg-red-50' : 'border-gray-300'
-              }`}
-              value={operationDescription}
-              onChange={(e) => {
-                setOperationDescription(e.target.value);
-                clearFieldError('operationDescription');
-              }}
-              disabled={isSubmitting || isSavingDraft}
-            />
-            {fieldErrors.operationDescription && (
-              <p className="mt-1 text-sm text-red-600">{fieldErrors.operationDescription}</p>
-            )}
-          </div>
-        </section>
-
-        {/* Source de Chaleur */}
-        <section ref={sourceChaleurRef} className="mb-8">
-          <h2 className="text-xl font-semibold mb-4">
-            Source de Chaleur <span className="text-red-500">*</span>
-          </h2>
-          <div className="grid grid-cols-3 gap-4">
-            {sourceChaleurOptions.map((opt) => (
-              <label key={opt.value} className="flex items-center">
-                <input
-                  type="checkbox"
-                  className="form-checkbox"
-                  checked={sourceChaleur.includes(opt.value)}
-                  onChange={() => toggleCheckbox(opt.value, sourceChaleur, setSourceChaleur)}
-                  disabled={isSubmitting || isSavingDraft}
-                />
-                <span className="ml-2">{opt.label}</span>
+            <div className="mb-4 space-y-2">
+              <label className="block text-sm font-medium text-gray-700">
+                Signature du responsable <span className="text-red-500">*</span>
               </label>
-            ))}
-          </div>
-          {fieldErrors.sourceChaleur && (
-            <p className="mt-2 text-sm text-red-600">{fieldErrors.sourceChaleur}</p>
-          )}
-        </section>
-
-        {/* Facteurs Aggravants */}
-        <section className="mb-8">
-          <h2 className="text-xl font-semibold mb-4">Facteurs Aggravants</h2>
-          <div className="grid grid-cols-3 gap-4">
-            {facteursAggravantsOptions.map((opt) => (
-              <label key={opt.value} className="flex items-center">
-                <input
-                  type="checkbox"
-                  className="form-checkbox"
-                  checked={facteursAggravants.includes(opt.value)}
-                  onChange={() => toggleCheckbox(opt.value, facteursAggravants, setFacteursAggravants)}
-                  disabled={isSubmitting || isSavingDraft}
+              <div className={`border-2 border-dashed rounded-lg p-2 bg-gray-50 touch-manipulation ${fieldErrors.signatureSurveillance ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                }`}>
+                <canvas
+                  ref={sigPadSurveillance}
+                  className="w-full border border-gray-200 rounded bg-white touch-none block"
+                  style={{
+                    touchAction: 'none',
+                    maxWidth: '100%',
+                    height: 'auto'
+                  }}
                 />
-                <span className="ml-2">{opt.label}</span>
-              </label>
-            ))}
-          </div>
-        </section>
-
-        {/* Mesures de Prévention - AVANT LE TRAVAIL */}
-        <section className="mb-8">
-          <h2 className="text-xl font-semibold mb-4">Mesures de Prévention - AVANT LE TRAVAIL</h2>
-          <div className="grid grid-cols-1 gap-4">
-            {mesuresAvOptions.map((opt) => (
-              <div key={opt.value} className="border p-3 rounded">
-                <div className="font-medium mb-2">{opt.label}</div>
-                <div className="flex gap-4">
-                  <label className="inline-flex items-center">
-                    <input
-                      type="checkbox"
-                      className="form-checkbox"
-                      checked={mesuresPreventionAvSelections[opt.value]?.EE || false}
-                      onChange={() =>
-                        toggleMeasureSelection(
-                          opt.value,
-                          "EE",
-                          mesuresPreventionAvSelections,
-                          setMesuresPreventionAvSelections
-                        )
-                      }
-                      disabled={isSubmitting || isSavingDraft}
-                    />
-                    <span className="ml-1">E.E</span>
-                  </label>
-                  <label className="inline-flex items-center">
-                    <input
-                      type="checkbox"
-                      className="form-checkbox"
-                      checked={mesuresPreventionAvSelections[opt.value]?.EU || false}
-                      onChange={() =>
-                        toggleMeasureSelection(
-                          opt.value,
-                          "EU",
-                          mesuresPreventionAvSelections,
-                          setMesuresPreventionAvSelections
-                        )
-                      }
-                      disabled={isSubmitting || isSavingDraft}
-                    />
-                    <span className="ml-1">E.U</span>
-                  </label>
-                </div>
               </div>
-            ))}
-          </div>
-        </section>
-
-        {/* Mesures de Prévention - PENDANT LE TRAVAIL */}
-        <section className="mb-8">
-          <h2 className="text-xl font-semibold mb-4">Mesures de Prévention - PENDANT LE TRAVAIL</h2>
-          <div className="grid grid-cols-1 gap-4">
-            {mesuresPnOptions.map((opt) => (
-              <div key={opt.value} className="border p-3 rounded">
-                <div className="font-medium mb-2">{opt.label}</div>
-                <div className="flex gap-4">
-                  <label className="inline-flex items-center">
-                    <input
-                      type="checkbox"
-                      className="form-checkbox"
-                      checked={mesuresPreventionPnSelections[opt.value]?.EE || false}
-                      onChange={() =>
-                        toggleMeasureSelection(
-                          opt.value,
-                          "EE",
-                          mesuresPreventionPnSelections,
-                          setMesuresPreventionPnSelections
-                        )
-                      }
-                      disabled={isSubmitting || isSavingDraft}
-                    />
-                    <span className="ml-1">E.E</span>
-                  </label>
-                  <label className="inline-flex items-center">
-                    <input
-                      type="checkbox"
-                      className="form-checkbox"
-                      checked={mesuresPreventionPnSelections[opt.value]?.EU || false}
-                      onChange={() =>
-                        toggleMeasureSelection(
-                          opt.value,
-                          "EU",
-                          mesuresPreventionPnSelections,
-                          setMesuresPreventionPnSelections
-                        )
-                      }
-                      disabled={isSubmitting || isSavingDraft}
-                    />
-                    <span className="ml-1">E.U</span>
-                  </label>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {/* Submit Buttons */}
-        <div className="mt-8 pt-6 border-t border-gray-200">
-          <div className="flex flex-col-reverse sm:flex-row gap-3 sm:gap-4 sm:justify-center">
-            {/* Save as Draft Button - Only show if not editing or if editing a planified permit */}
-            {(!isEditing || (isEditing && loadedPermisData?.status === "planified")) && (
               <button
                 type="button"
-                onClick={handleSaveDraft}
-                className="w-full sm:w-auto px-6 sm:px-8 py-3 h-12 sm:h-auto bg-gray-600 hover:bg-gray-700 text-white rounded-md font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-colors duration-200"
+                onClick={clearSignatureSurveillance}
+                className="w-full sm:w-auto px-4 py-2 text-sm text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 rounded-md transition-colors duration-200 font-medium"
                 disabled={isSubmitting || isSavingDraft}
               >
-                {isSavingDraft ? (
+                Effacer la signature
+              </button>
+              {fieldErrors.signatureSurveillance && (
+                <p className="text-sm text-red-600">{fieldErrors.signatureSurveillance}</p>
+              )}
+            </div>
+          </section>
+
+          {/* Travaux réalisés par */}
+          <section ref={travauxRef} className="mb-8">
+            <h2 className="text-xl font-semibold mb-4">Travaux réalisés par</h2>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700">
+                Nom de la personne <span className="text-red-500">*</span>
+              </label>
+              <CreatableSelect
+                options={personOptions}
+                value={selectedTravauxPerson}
+                onChange={handleTravauxPersonChange}
+                placeholder="Sélectionnez ou créez un responsable"
+                isDisabled={isSubmitting || isSavingDraft}
+                styles={{
+                  control: (base) => ({
+                    ...base,
+                    borderColor: fieldErrors.selectedTravauxPerson ? '#ef4444' : base.borderColor, // ✅ Correct field
+                    backgroundColor: fieldErrors.selectedTravauxPerson ? '#fef2f2' : base.backgroundColor, // ✅ Correct field
+                  })
+                }}
+              />
+              {fieldErrors.selectedTravauxPerson && (
+                <p className="mt-1 text-sm text-red-600">{fieldErrors.selectedTravauxPerson}</p>
+              )}
+            </div>
+          </section>
+
+          {/* Responsable du site / délégation */}
+          <section ref={siteResponsableRef} className="mb-8">
+            <h2 className="text-xl font-semibold mb-4">Responsable du site / délégation</h2>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700">
+                Entreprise (site) <span className="text-red-500">*</span>
+              </label>
+              <CreatableSelect
+                options={entrepriseOptions}
+                value={selectedEntrepriseSite}
+                onChange={handleEntrepriseChange}
+                placeholder="Sélectionnez ou créez une entreprise"
+                isDisabled={isSubmitting || isSavingDraft}
+                styles={{
+                  control: (base) => ({
+                    ...base,
+                    borderColor: fieldErrors.selectedEntrepriseSite ? '#ef4444' : base.borderColor, // ✅ Correct field
+                    backgroundColor: fieldErrors.selectedEntrepriseSite ? '#fef2f2' : base.backgroundColor, // ✅ Correct field
+                  })
+                }}
+              />
+              {fieldErrors.selectedEntrepriseSite && (
+                <p className="mt-1 text-sm text-red-600">{fieldErrors.selectedEntrepriseSite}</p>
+              )}
+            </div>
+
+
+
+
+
+            {/* ADD THIS: Missing person selection field */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700">
+                Nom du responsable <span className="text-red-500">*</span>
+              </label>
+              <CreatableSelect
+                options={personOptions.filter(p => p.entreprise_id === selectedEntrepriseSite?.value)}
+                value={selectedSiteResponsable}
+                onChange={handleSiteResponsableChange}
+                placeholder="Sélectionnez ou créez un responsable"
+                isDisabled={isSubmitting || isSavingDraft || !selectedEntrepriseSite}
+                styles={{
+                  control: (base) => ({
+                    ...base,
+                    borderColor: fieldErrors.selectedSiteResponsable ? '#ef4444' : base.borderColor,
+                    backgroundColor: fieldErrors.selectedSiteResponsable ? '#fef2f2' : base.backgroundColor,
+                  })
+                }}
+              />
+              {fieldErrors.selectedSiteResponsable && (
+                <p className="mt-1 text-sm text-red-600">{fieldErrors.selectedSiteResponsable}</p>
+              )}
+            </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+            <div className="mb-4 space-y-2">
+              <label className="block text-sm font-medium text-gray-700">
+                Signature <span className="text-red-500">*</span>
+              </label>
+              <div className={`border-2 border-dashed rounded-lg p-2 bg-gray-50 touch-manipulation ${fieldErrors.signatureSite ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                }`}>
+                <canvas
+                  ref={sigPadSite}
+                  className="w-full border border-gray-200 rounded bg-white touch-none block"
+                  style={{
+                    touchAction: 'none',
+                    maxWidth: '100%',
+                    height: 'auto'
+                  }}
+                />
+              </div>
+              <button
+                type="button"
+                onClick={clearSignatureSite}
+                className="w-full sm:w-auto px-4 py-2 text-sm text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 rounded-md transition-colors duration-200 font-medium"
+                disabled={isSubmitting || isSavingDraft}
+              >
+                Effacer la signature
+              </button>
+              {fieldErrors.signatureSite && (
+                <p className="text-sm text-red-600">{fieldErrors.signatureSite}</p>
+              )}
+            </div>
+          </section>
+
+          {/* Lieu et Opération */}
+          <section ref={lieuRef} className="mb-8">
+            <h2 className="text-xl font-semibold mb-4">Localisation & Opération</h2>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700">
+                Localisation / Lieu <span className="text-red-500">*</span>
+              </label>
+              <CreatableSelect
+                options={lieuOptions}
+                value={selectedLieu}
+                onChange={handleZoneChange}
+                placeholder="Sélectionnez ou créez une zone..."
+                isDisabled={isSubmitting || isSavingDraft}
+                styles={{
+                  control: (base) => ({
+                    ...base,
+                    borderColor: fieldErrors.selectedLieu ? '#ef4444' : base.borderColor,
+                    backgroundColor: fieldErrors.selectedLieu ? '#fef2f2' : base.backgroundColor,
+                  })
+                }}
+              />
+              {fieldErrors.selectedLieu && (
+                <p className="mt-1 text-sm text-red-600">{fieldErrors.selectedLieu}</p>
+              )}
+            </div>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700">
+                Opération à effectuer <span className="text-red-500">*</span>
+              </label>
+              <textarea
+                rows="3"
+                placeholder="Description de l'opération"
+                className={`mt-1 block w-full border rounded p-2 ${fieldErrors.operationDescription ? 'border-red-500 bg-red-50' : 'border-gray-300'
+                  }`}
+                value={operationDescription}
+                onChange={(e) => {
+                  setOperationDescription(e.target.value);
+                  clearFieldError('operationDescription');
+                }}
+                disabled={isSubmitting || isSavingDraft}
+              />
+              {fieldErrors.operationDescription && (
+                <p className="mt-1 text-sm text-red-600">{fieldErrors.operationDescription}</p>
+              )}
+            </div>
+          </section>
+
+          {/* Source de Chaleur */}
+          <section ref={sourceChaleurRef} className="mb-8">
+            <h2 className="text-xl font-semibold mb-4">
+              Source de Chaleur <span className="text-red-500">*</span>
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {sourceChaleurOptions.map((opt) => {
+                const IconComponent = getIconForLabel(opt.label, sourceChaleurIcons, ElectricWeldingIcon);
+                return (
+                  <label key={opt.value} className="flex items-center gap-2 p-2 border rounded hover:bg-gray-50 cursor-pointer">
+                    <IconComponent className="w-5 h-5 flex-shrink-0" />
+                    <input
+                      type="checkbox"
+                      className="form-checkbox flex-shrink-0"
+                      checked={sourceChaleur.includes(opt.value)}
+                      onChange={() => toggleCheckbox(opt.value, sourceChaleur, setSourceChaleur)}
+                      disabled={isSubmitting || isSavingDraft}
+                    />
+                    <span className="ml-2 text-sm">{opt.label}</span>
+                  </label>
+                );
+              })}
+            </div>
+            {fieldErrors.sourceChaleur && (
+              <p className="mt-2 text-sm text-red-600">{fieldErrors.sourceChaleur}</p>
+            )}
+          </section>
+
+          {/* Facteurs Aggravants */}
+          <section className="mb-8">
+            <h2 className="text-xl font-semibold mb-4">Facteurs Aggravants</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {facteursAggravantsOptions.map((opt) => {
+                const IconComponent = getIconForLabel(opt.label, facteursAggravantsIcons, CombustibleIcon);
+                return (
+                  <label key={opt.value} className="flex items-center gap-2 p-2 border rounded hover:bg-gray-50 cursor-pointer">
+                    <IconComponent className="w-5 h-5 flex-shrink-0" />
+                    <input
+                      type="checkbox"
+                      className="form-checkbox flex-shrink-0"
+                      checked={facteursAggravants.includes(opt.value)}
+                      onChange={() => toggleCheckbox(opt.value, facteursAggravants, setFacteursAggravants)}
+                      disabled={isSubmitting || isSavingDraft}
+                    />
+                    <span className="ml-2 text-sm">{opt.label}</span>
+                  </label>
+                );
+              })}
+            </div>
+          </section>
+
+          {/* Mesures de Prévention - AVANT LE TRAVAIL */}
+          <section className="mb-8">
+            <h2 className="text-xl font-semibold mb-4">Mesures de Prévention - AVANT LE TRAVAIL</h2>
+            <div className="grid grid-cols-1 gap-4">
+              {mesuresAvOptions.map((opt) => {
+                const IconComponent = getIconForLabel(opt.label, mesuresAvantIcons, CheckEquipmentIcon);
+                return (
+                  <div key={opt.value} className="border p-3 rounded">
+                    <div className="flex items-center gap-2 font-medium mb-2">
+                      <IconComponent className="w-5 h-5 flex-shrink-0" />
+                      <span>{opt.label}</span>
+                    </div>
+                    <div className="flex gap-4">
+                      <label className="inline-flex items-center">
+                        <input
+                          type="checkbox"
+                          className="form-checkbox"
+                          checked={mesuresPreventionAvSelections[opt.value]?.EE || false}
+                          onChange={() =>
+                            toggleMeasureSelection(
+                              opt.value,
+                              "EE",
+                              mesuresPreventionAvSelections,
+                              setMesuresPreventionAvSelections
+                            )
+                          }
+                          disabled={isSubmitting || isSavingDraft}
+                        />
+                        <span className="ml-1">E.E</span>
+                      </label>
+                      <label className="inline-flex items-center">
+                        <input
+                          type="checkbox"
+                          className="form-checkbox"
+                          checked={mesuresPreventionAvSelections[opt.value]?.EU || false}
+                          onChange={() =>
+                            toggleMeasureSelection(
+                              opt.value,
+                              "EU",
+                              mesuresPreventionAvSelections,
+                              setMesuresPreventionAvSelections
+                            )
+                          }
+                          disabled={isSubmitting || isSavingDraft}
+                        />
+                        <span className="ml-1">E.U</span>
+                      </label>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+
+          {/* Mesures de Prévention - PENDANT LE TRAVAIL */}
+          <section className="mb-8">
+            <h2 className="text-xl font-semibold mb-4">Mesures de Prévention - PENDANT LE TRAVAIL</h2>
+            <div className="grid grid-cols-1 gap-4">
+              {mesuresPnOptions.map((opt) => {
+                const IconComponent = getIconForLabel(opt.label, mesuresPendantIcons, ProjectionIcon);
+                return (
+                  <div key={opt.value} className="border p-3 rounded">
+                    <div className="flex items-center gap-2 font-medium mb-2">
+                      <IconComponent className="w-5 h-5 flex-shrink-0" />
+                      <span>{opt.label}</span>
+                    </div>
+                    <div className="flex gap-4">
+                      <label className="inline-flex items-center">
+                        <input
+                          type="checkbox"
+                          className="form-checkbox"
+                          checked={mesuresPreventionPnSelections[opt.value]?.EE || false}
+                          onChange={() =>
+                            toggleMeasureSelection(
+                              opt.value,
+                              "EE",
+                              mesuresPreventionPnSelections,
+                              setMesuresPreventionPnSelections
+                            )
+                          }
+                          disabled={isSubmitting || isSavingDraft}
+                        />
+                        <span className="ml-1">E.E</span>
+                      </label>
+                      <label className="inline-flex items-center">
+                        <input
+                          type="checkbox"
+                          className="form-checkbox"
+                          checked={mesuresPreventionPnSelections[opt.value]?.EU || false}
+                          onChange={() =>
+                            toggleMeasureSelection(
+                              opt.value,
+                              "EU",
+                              mesuresPreventionPnSelections,
+                              setMesuresPreventionPnSelections
+                            )
+                          }
+                          disabled={isSubmitting || isSavingDraft}
+                        />
+                        <span className="ml-1">E.U</span>
+                      </label>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+
+          {/* Submit Buttons */}
+          <div className="mt-8 pt-6 border-t border-gray-200">
+            <div className="flex flex-col-reverse sm:flex-row gap-3 sm:gap-4 sm:justify-center">
+              {/* Save as Draft Button - Only show if not editing or if editing a planified permit */}
+              {(!isEditing || (isEditing && loadedPermisData?.status === "planified")) && (
+                <button
+                  type="button"
+                  onClick={handleSaveDraft}
+                  className="w-full sm:w-auto px-6 sm:px-8 py-3 h-12 sm:h-auto bg-gray-600 hover:bg-gray-700 text-white rounded-md font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-colors duration-200"
+                  disabled={isSubmitting || isSavingDraft}
+                >
+                  {isSavingDraft ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                      <span>Sauvegarde...</span>
+                    </>
+                  ) : (
+                    <span>Sauvegarder comme planifié</span>
+                  )}
+                </button>
+              )}
+
+              {/* Submit Button */}
+              <button
+                type="submit"
+                className="w-full sm:w-auto px-6 sm:px-8 py-3 h-12 sm:h-auto bg-blue-600 hover:bg-blue-700 text-white rounded-md font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-colors duration-200"
+                disabled={isSubmitting || isSavingDraft}
+              >
+                {isSubmitting ? (
                   <>
                     <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-                    <span>Sauvegarde...</span>
+                    <span>{isEditing ? 'Mise à jour...' : 'Enregistrement...'}</span>
                   </>
                 ) : (
-                  <span>Sauvegarder comme planifié</span>
+                  <span>{isEditing ? 'Mettre à jour le Permis' : 'Ajouter Permis de Feu'}</span>
                 )}
               </button>
-            )}
-
-            {/* Submit Button */}
-            <button
-              type="submit"
-              className="w-full sm:w-auto px-6 sm:px-8 py-3 h-12 sm:h-auto bg-blue-600 hover:bg-blue-700 text-white rounded-md font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-colors duration-200"
-              disabled={isSubmitting || isSavingDraft}
-            >
-              {isSubmitting ? (
-                <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-                  <span>{isEditing ? 'Mise à jour...' : 'Enregistrement...'}</span>
-                </>
-              ) : (
-                <span>{isEditing ? 'Mettre à jour le Permis' : 'Ajouter Permis de Feu'}</span>
-              )}
-            </button>
+            </div>
           </div>
-        </div>
         </form>
       </div>
     </div>

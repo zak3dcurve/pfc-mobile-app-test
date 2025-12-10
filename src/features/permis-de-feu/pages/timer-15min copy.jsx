@@ -5,7 +5,12 @@ import { useAuth } from "@/features/auth/utils/auth-context";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { PhotoUploader } from "../components/PhotoUploader";
 import { Capacitor } from '@capacitor/core';
-import TopdonThermal from '../plugins/topdon-thermal';
+
+
+
+const TopdonTC001 = Capacitor.Plugins.TopdonTC001;  // ✅ ADD THIS LINE
+
+
 
 
   const FormComponent = ({
@@ -30,9 +35,7 @@ import TopdonThermal from '../plugins/topdon-thermal';
 
 
 
-    formType,
-thermalImage,
-onCaptureThermal,
+    formType
 
   }) => (
 
@@ -149,32 +152,40 @@ onCaptureThermal,
       <PhotoUploader photos={photos} setPhotos={setPhotos} />
 
       {/* Topdon Thermal Camera Button */}
-<div className="flex flex-col gap-2">
-  <button
-    type="button"
-    onClick={onCaptureThermal}
-    className="w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold px-6 py-3 rounded-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 min-h-[44px]"
-  >
-    🌡️ Capturer Image Thermique
-  </button>
-  
-  {thermalImage && (
-    <div className="border-2 border-purple-300 rounded-md p-2">
-      <p className="text-sm text-gray-600 mb-2">Aperçu thermique:</p>
-      <img 
-        src={thermalImage} 
-        alt="Thermal preview"
-        className="w-full h-48 object-contain bg-black rounded"
-      />
-    </div>
-  )}
-</div>
+      <div className="flex flex-col gap-2">
+        <button
+          type="button"
+          onClick={() => {
+            if (cameraConnected) {
+              alert('Camera is ready! Thermal images will be captured automatically.');
+            } else {
+              alert('Please connect the Topdon TC001 thermal camera via USB-C');
+            }
+          }}
+          className={`w-full font-semibold px-6 py-3 rounded-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 min-h-[44px] ${
+            cameraConnected 
+              ? 'bg-green-600 hover:bg-green-700 focus:ring-green-500' 
+              : 'bg-gray-600 hover:bg-gray-700 focus:ring-gray-500'
+          }`}
+        >
+          {cameraConnected ? '✅ Thermal Camera Connected' : '📷 Connect Thermal Camera'}
+        </button>
+        
+        {thermalImage && (
+          <img 
+            src={thermalImage} 
+            alt="Thermal preview"
+            className="w-full h-48 object-contain border border-gray-300 rounded-md"
+          />
+        )}
+      </div>
 
       <button type="submit" className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold px-6 py-3 rounded-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 min-h-[44px]">
 
         Soumettre le Rapport
 
       </button>
+/////////xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
      
 
       {result === "Anomalie" && (
@@ -238,6 +249,56 @@ const PauseDejeunerTimer = () => {
 
 
 
+// State for thermal camera
+  const [thermalImage, setThermalImage] = useState('');
+  const [cameraConnected, setCameraConnected] = useState(false);
+
+  // Initialize thermal camera
+  useEffect(() => {
+    const initThermalCamera = async () => {
+      try {
+        await TopdonTC001.initialize();
+        console.log('✅ Thermal camera initialized');
+        
+        // Listen for thermal frames
+        TopdonTC001.addListener('thermalFrame', (data) => {
+          console.log('📸 Thermal frame received:', {
+            avgTemp: data.avgTemperature,
+            minTemp: data.minTemperature,
+            maxTemp: data.maxTemperature
+          });
+          
+          // Store the thermal image as base64
+          setThermalImage(`data:image/jpeg;base64,${data.image}`);
+        });
+        
+        // Listen for camera connection status
+        TopdonTC001.addListener('cameraStatus', (data) => {
+          setCameraConnected(data.connected);
+          console.log('📷 Camera connected:', data.connected);
+          if (data.connected) {
+            alert('Topdon TC001 thermal camera connected!');
+          }
+        });
+        
+        // Listen for errors
+        TopdonTC001.addListener('thermalError', (data) => {
+          console.error('❌ Camera error:', data.error);
+          alert('Camera error: ' + data.error);
+        });
+        
+      } catch (error) {
+        console.error('Failed to initialize thermal camera:', error);
+      }
+    };
+    
+    initThermalCamera();
+    
+    // Cleanup on unmount
+    return () => {
+      TopdonTC001.stopCamera();
+    };
+  }, []);
 
 
 
@@ -259,10 +320,6 @@ const PauseDejeunerTimer = () => {
 
 
   const [loading, setLoading] = useState(true);
-
-const [thermalImage, setThermalImage] = useState('');
-const [cameraReady, setCameraReady] = useState(false);
-const [cameraError, setCameraError] = useState('');
 
   const [timerId, setTimerId] = useState("");
 
@@ -533,47 +590,6 @@ const [cameraError, setCameraError] = useState('');
     }
 
   };
-
-
-useEffect(() => {
-  if (Capacitor.getPlatform() !== 'android') {
-    console.log('TopdonThermal: skipping ping, not on Android');
-    return;
-  }
-
-  const testPlugin = async () => {
-    try {
-      const res = await TopdonThermal.ping();
-      console.log('TopdonThermal ping OK:', res);
-    } catch (err) {
-      console.error('TopdonThermal ping ERROR:', err);
-      alert('TopdonThermal ping ERROR: ' + err.message);
-    }
-  };
-
-  testPlugin();
-}, []);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -1005,23 +1021,6 @@ if (entreprise?.id) {
 
 
 
-
-//new
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
   // Format helper
 
   const formatTime = ms => {
@@ -1197,69 +1196,6 @@ if (entreprise?.id) {
   };
 
 
-// 👇 add this helper function somewhere above handleCaptureThermal
-const waitForCameraReady = async (timeoutMs = 4000) => {
-  const start = Date.now();
-
-  while (Date.now() - start < timeoutMs) {
-    try {
-      const { ready } = await TopdonThermal.isReady();
-      console.log('TopdonThermal isReady() ->', ready);
-      if (ready) return true;
-    } catch (e) {
-      console.warn('isReady() error:', e);
-    }
-
-    // wait a bit before checking again
-    await new Promise(res => setTimeout(res, 300));
-  }
-
-  return false;
-};
-
-
-//new
-
-const handleCaptureThermal = async () => {
-  if (Capacitor.getPlatform() !== 'android') {
-    alert('🖥️ La caméra thermique ne fonctionne que dans l’app Android.');
-    return;
-  }
-
-  try {
-    // 1) initialize (register USB monitor + ask permission)
-    await TopdonThermal.initialize();
-
-    // 2) give Android some time to actually open the camera
-    const ready = await waitForCameraReady();
-
-    if (!ready) {
-      alert('⚠️ Caméra non prête.\n\n- Vérifiez que le Topdon TC001 est bien branché.\n- Si une fenêtre de permission s’ouvre, acceptez-la puis réessayez.');
-      return;
-    }
-
-    // 3) NOW it should be connected → capture
-    const result = await TopdonThermal.captureImage();
-    setThermalImage(`data:image/png;base64,${result.image}`);
-    alert(`✅ Capturé! Temp: ${result.centerTemperature}°C`);
-  } catch (error) {
-    console.error('TopdonThermal capture error', error);
-    alert('❌ Erreur caméra thermique: ' + error.message);
-  }
-};
-
-
-
-
-
-
-
-
-
-
-
-
-
 
   // Common function for form validation
 
@@ -1371,28 +1307,10 @@ const submitVerificationForm = async (date, type, equipement, intervenant, resul
 
           if (photoInsertError) throw photoInsertError;
 
-
-
-
         }
 
       }
-if (thermalImage) {
-  const response = await fetch(thermalImage);
-  const blob = await response.blob();
-  const thermalFileName = `${newVerificationId}/thermal_${Date.now()}.png`;
-  
-  await supabase.storage.from('verification-images').upload(thermalFileName, blob);
-  const { data: { publicUrl } } = supabase.storage.from('verification-images').getPublicUrl(thermalFileName);
-  
-  await supabase.from('verification_photos').insert({
-    photo_url: publicUrl,
-    verification_id: newVerificationId,
-    is_thermal: true
-  });
-  
-  setThermalImage('');
-}
+
 
 
       // Step 3: The rest of your existing logic for anomaly/RAS
@@ -1741,8 +1659,6 @@ if (!validateForm(firstDate, autoEquipement, firstIntervenant, firstResult)) {
 
           formType="2h"
 
-thermalImage={thermalImage}
-onCaptureThermal={handleCaptureThermal}
         />
 
       );
@@ -1781,8 +1697,6 @@ onCaptureThermal={handleCaptureThermal}
 
           formType="dejeuner"
 
-thermalImage={thermalImage}
-onCaptureThermal={handleCaptureThermal}
         />
 
       );
@@ -1820,9 +1734,6 @@ onCaptureThermal={handleCaptureThermal}
           onSubmit={handleSubmit}
 
           formType="15min"
-
-thermalImage={thermalImage}
-onCaptureThermal={handleCaptureThermal}
 
         />
 
