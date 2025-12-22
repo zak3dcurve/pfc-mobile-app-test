@@ -26,6 +26,23 @@ import {
   CogIcon
 } from "@heroicons/react/24/outline";
 
+
+
+
+
+
+
+
+// Add these imports at the top of your file
+import { Capacitor } from '@capacitor/core';
+import { Filesystem, Directory } from '@capacitor/filesystem';
+import { Share } from '@capacitor/share';
+import { FileOpener } from '@capacitor-community/file-opener';
+
+
+
+
+
 const MulticonsDetail = () => {
     const { id } = useParams();
     const navigate = useNavigate();
@@ -348,6 +365,7 @@ const fetchBlendedDeconsignations = async () => {
         );
     }
 
+// Updated handlePrint function
 const handlePrint = async () => {
     setPrinting(true);
     try {
@@ -372,17 +390,63 @@ const handlePrint = async () => {
             blendedDecons = blendedDeconsignations;
         }
 
-        // Generate & save PDF with ALL consignations
+        // Generate PDF with ALL consignations
         const doc = generateExactFormPDF(
             consData,
             deconsignation || {},
             consignationTypes,
-            allConsignations, // Use ALL consignations here instead of filtered ones
+            allConsignations,
             blendedDecons || [],
         );
 
         if (doc) {
-            doc.save(`multiconsignation-${id}.pdf`);
+            // Create filename
+            const fileName = `multiconsignation-${id}.pdf`;
+            
+            // Check if running on mobile/native platform (Capacitor)
+            if (Capacitor.isNativePlatform()) {
+                // For mobile devices
+                try {
+                    // Convert PDF to base64
+                    const pdfOutput = doc.output('datauristring');
+                    const base64Data = pdfOutput.split(',')[1];
+                    
+                    // Save the file using Capacitor Filesystem
+                    const savedFile = await Filesystem.writeFile({
+                        path: fileName,
+                        data: base64Data,
+                        directory: Directory.Documents,
+                    });
+                    
+                    // Option 1: Open the PDF with the default PDF viewer
+                    try {
+                        await FileOpener.open({
+                            filePath: savedFile.uri,
+                            contentType: 'application/pdf',
+                        });
+                    } catch (openError) {
+                        console.log('Could not open file, trying share instead', openError);
+                        
+                        // Option 2: Share the PDF if opening fails
+                        await Share.share({
+                            title: fileName,
+                            text: `Multiconsignation ${id}`,
+                            url: savedFile.uri,
+                            dialogTitle: 'Partager le PDF',
+                        });
+                    }
+                    
+                    // Show success message
+                    alert(`PDF sauvegardé: ${fileName}`);
+                    
+                } catch (mobileError) {
+                    console.error('Error saving PDF on mobile:', mobileError);
+                    alert('Erreur lors de la sauvegarde du PDF sur mobile');
+                }
+            } else {
+                // For web browsers - use the original method
+                doc.save(fileName);
+            }
         }
     } catch (error) {
         console.error("Error generating PDF:", error);
@@ -391,7 +455,6 @@ const handlePrint = async () => {
         setPrinting(false);
     }
 };
-
 // Add this helper function
 const generateAndSavePDF = (consData) => {
     // Generate & save

@@ -6,7 +6,8 @@ export function useTimerStatus(pdfId, timerField, formField) {
   const [status, setStatus] = useState({
     remaining: null,
     formDone: false,
-    hasTimer: false
+    hasTimer: false,
+    loaded: false  // NEW: track if data is loaded
   });
 
   useEffect(() => {
@@ -21,7 +22,7 @@ export function useTimerStatus(pdfId, timerField, formField) {
         .maybeSingle();
 
       if (error || !data) {
-        setStatus({ remaining: null, formDone: false, hasTimer: false });
+        setStatus({ remaining: null, formDone: false, hasTimer: false, loaded: true });
         return;
       }
 
@@ -45,7 +46,7 @@ export function useTimerStatus(pdfId, timerField, formField) {
         iv = setInterval(tick, 1000);
       }
 
-      setStatus({ remaining, formDone, hasTimer });
+      setStatus({ remaining, formDone, hasTimer, loaded: true });
     }
 
     load();

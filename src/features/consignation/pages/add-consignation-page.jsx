@@ -37,16 +37,15 @@ import {
   DocumentCheckIcon,
   ExclamationCircleIcon,
   BoltIcon,
-  Bars3BottomLeftIcon,
-  BeakerIcon,
-  FireIcon
+  Bars3BottomLeftIcon
 } from "@heroicons/react/24/outline";
+import { Fan, Wind } from "lucide-react";
 
 // Icons mapping for consignation types
 const consignationTypeIcons = {
   1: BoltIcon,           // électrique
-  2: BeakerIcon,         // fluide thermique, hydraulique, frigorigène, gaz, produit dangereux
-  3: CogIcon,            // machine risque mécanique
+  2: Wind,               // fluide thermique, hydraulique, frigorigène, gaz, produit dangereux
+  3: Fan,                // machine risque mécanique
 };
 
 const consignationTypeColors = {
@@ -849,10 +848,7 @@ const AddConsignation = () => {
                 {/* Site & Zone Card */}
                 <Card className="shadow-md border-0 bg-white mb-6 overflow-visible">
                   <CardHeader className="pb-4">
-                    <CardTitle className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                      <div className="flex items-center justify-center w-8 h-8 bg-orange-100 rounded-full">
-                        <MapPinIcon className="h-4 w-4 text-orange-600" />
-                      </div>
+                    <CardTitle className="text-lg font-semibold text-gray-900">
                       Localisation
                     </CardTitle>
                   </CardHeader>
@@ -954,10 +950,7 @@ const AddConsignation = () => {
                 {/* Work Details Card */}
                 <Card className="shadow-md border-0 bg-white mb-6">
                   <CardHeader className="pb-4">
-                    <CardTitle className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                      <div className="flex items-center justify-center w-8 h-8 bg-green-100 rounded-full">
-                        <WrenchScrewdriverIcon className="h-4 w-4 text-green-600" />
-                      </div>
+                    <CardTitle className="text-lg font-semibold text-gray-900">
                       Détails des Travaux
                     </CardTitle>
                   </CardHeader>
@@ -1031,10 +1024,7 @@ const AddConsignation = () => {
                 {/* Security Card */}
                 <Card className="shadow-md border-0 bg-white mb-6">
                   <CardHeader className="pb-4">
-                    <CardTitle className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                      <div className="flex items-center justify-center w-8 h-8 bg-amber-100 rounded-full">
-                        <ShieldCheckIcon className="h-4 w-4 text-amber-600" />
-                      </div>
+                    <CardTitle className="text-lg font-semibold text-gray-900">
                       Sécurité et Verrouillage
                     </CardTitle>
                   </CardHeader>
@@ -1088,10 +1078,7 @@ const AddConsignation = () => {
               <>
                 <Card className="shadow-md border-0 bg-white mb-6 overflow-visible">
                   <CardHeader className="pb-4">
-                    <CardTitle className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                      <div className="flex items-center justify-center w-8 h-8 bg-green-100 rounded-full">
-                        <UserIcon className="h-4 w-4 text-green-600" />
-                      </div>
+                    <CardTitle className="text-lg font-semibold text-gray-900">
                       Informations du Consignateur
                     </CardTitle>
                   </CardHeader>
@@ -1192,10 +1179,7 @@ const AddConsignation = () => {
                 {/* Options Card */}
                 <Card className="shadow-md border-0 bg-white mb-6">
                   <CardHeader className="pb-4">
-                    <CardTitle className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                      <div className="flex items-center justify-center w-8 h-8 bg-indigo-100 rounded-full">
-                        <Bars3BottomLeftIcon className="h-4 w-4 text-indigo-600" />
-                      </div>
+                    <CardTitle className="text-lg font-semibold text-gray-900">
                       Options
                     </CardTitle>
                   </CardHeader>
@@ -1214,14 +1198,9 @@ const AddConsignation = () => {
                           onChange={handleChange}
                           className="h-5 w-5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
                         />
-                        <div className="flex items-center gap-2">
-                          <div className="flex items-center justify-center w-8 h-8 bg-indigo-100 rounded-full">
-                            <HandRaisedIcon className="h-4 w-4 text-indigo-600" />
-                          </div>
-                          <div>
-                            <p className="font-medium text-gray-900">Consigné pour moi-même</p>
-                            <p className="text-sm text-gray-600">Je suis également le demandeur de cette consignation</p>
-                          </div>
+                        <div>
+                          <p className="font-medium text-gray-900">Consigné pour moi-même</p>
+                          <p className="text-sm text-gray-600">Je suis également le demandeur de cette consignation</p>
                         </div>
                       </label>
                     </div>
@@ -1242,20 +1221,11 @@ const AddConsignation = () => {
                           onChange={handleChange}
                           className="h-5 w-5 rounded border-gray-300 text-green-600 focus:ring-green-500"
                         />
-                        <div className="flex items-center gap-2">
-                          <div className={`flex items-center justify-center w-8 h-8 rounded-full ${
-                            formData.info_salle_controle ? 'bg-green-100' : 'bg-gray-200'
-                          }`}>
-                            <ShieldCheckIcon className={`h-4 w-4 ${
-                              formData.info_salle_controle ? 'text-green-600' : 'text-gray-500'
-                            }`} />
-                          </div>
-                          <div>
-                            <p className="font-medium text-gray-900">
-                              Informer la salle de contrôle <span className="text-red-500">*</span>
-                            </p>
-                            <p className="text-sm text-gray-600">Confirmation d'information de la salle de contrôle</p>
-                          </div>
+                        <div>
+                          <p className="font-medium text-gray-900">
+                            Informer la salle de contrôle <span className="text-red-500">*</span>
+                          </p>
+                          <p className="text-sm text-gray-600">Confirmation d'information de la salle de contrôle</p>
                         </div>
                       </label>
                       {errors.info_salle_controle && (
@@ -1274,10 +1244,7 @@ const AddConsignation = () => {
             {currentStep === 3 && !formData.consigne_pour_moi && (
               <Card className="shadow-md border-0 bg-white mb-6 overflow-visible">
                 <CardHeader className="pb-4">
-                  <CardTitle className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                    <div className="flex items-center justify-center w-8 h-8 bg-purple-100 rounded-full">
-                      <UserGroupIcon className="h-4 w-4 text-purple-600" />
-                    </div>
+                  <CardTitle className="text-lg font-semibold text-gray-900">
                     Informations du Demandeur
                   </CardTitle>
                 </CardHeader>
@@ -1406,10 +1373,7 @@ const AddConsignation = () => {
                 {/* Declaration Card */}
                 <Card className="shadow-md border-0 bg-white mb-6">
                   <CardHeader className="pb-4">
-                    <CardTitle className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                      <div className="flex items-center justify-center w-8 h-8 bg-indigo-100 rounded-full">
-                        <DocumentCheckIcon className="h-4 w-4 text-indigo-600" />
-                      </div>
+                    <CardTitle className="text-lg font-semibold text-gray-900">
                       Déclaration
                     </CardTitle>
                   </CardHeader>

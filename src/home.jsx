@@ -8,11 +8,11 @@ import { Badge } from "@/components/ui/badge";
 import notificationSound from "@/assets/notification.mp3";
 import StatutTimer from "./features/permis-de-feu/components/StatutTimer";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { calculateRowStatus } from "./features/permis-de-feu/utils/Statuscalculator";
 
 const ConsignationHome = () => {
   const [consignations, setConsignations] = useState([]);
-  const [permis, setPermis] = useState([]);
-  const [rowsWithTimers, setRowsWithTimers] = useState([]); // Add state for permis with timers
+  const [rowsWithStatus, setRowsWithStatus] = useState([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const notificationAudio = useRef(new Audio(notificationSound));
@@ -41,27 +41,9 @@ const ConsignationHome = () => {
     return data;
   };
 
-  // Add function to get remaining status (from PermisDeFeuList logic)
-  const getRemainingStatus = (timerString) => {
-    if (!timerString) return null;
-    return new Date(timerString).getTime() - Date.now();
-  };
-
-  // Add function to check if row is critical (from PermisDeFeuList logic)
-  const isRowCritical = (row) => {
-    const t1 = getRemainingStatus(row?.timer_15min);
-    const t2 = getRemainingStatus(row?.timer_2h);
-    const t3 = getRemainingStatus(row?.timer_dejeuner_15min);
-
-    return (
-      (t1 && t1 <= 300000) ||
-      (t2 && t2 <= 300000) ||
-      (t3 && t3 <= 300000)
-    );
-  };
-
-  // Enhanced fetchPermis function with timer logic (from PermisDeFeuList)
+  // Fetch Permis de Feu with status calculation
   const fetchPermis = async () => {
+    // 1. Fetch Permis de feu
     const { data: permisData, error: permisError } = await supabase
       .from("permis_de_feu")
       .select(`
@@ -69,8 +51,7 @@ const ConsignationHome = () => {
         responsables:persons!resp_surveillance_id(name),
         zones:zones!lieu_id(name)
       `)
-          .not("status", "in", "(planified,archived)") // ADD THIS LINE
-
+      .not("status", "in", "(planified,archived)")
       .order("created_at", { ascending: false });
 
     if (permisError || !permisData) {
@@ -78,37 +59,38 @@ const ConsignationHome = () => {
       return;
     }
 
+    // 2. Fetch ALL timer data (timestamps AND boolean fields)
     const { data: timers, error: timerError } = await supabase
       .from("timer_end")
-      .select("pdf_id, timer_15min, timer_2h, timer_dejeuner_15min");
+      .select("*");
 
     if (timerError) {
       console.error("Error fetching timers:", timerError);
-      setPermis(permisData);
+      // Continue with permis data even if timers fail
+      const merged = permisData.map((row) => ({
+        ...row,
+        statusAlgo: "en_cours",
+      }));
+      setRowsWithStatus(merged);
       return;
     }
 
-    // Merge timer timestamps into rows
-    const merged = permisData.map(row => {
-      const timerRow = timers.find(t => t.pdf_id === row.id);
-      return {
+    // 3. Merge data and calculate status IMMEDIATELY
+    const merged = permisData.map((row) => {
+      const timerRow = timers?.find((t) => t.pdf_id === row.id);
+      
+      const fullRowData = {
         ...row,
-        timer_15min: timerRow?.timer_15min,
-        timer_2h: timerRow?.timer_2h,
-        timer_dejeuner_15min: timerRow?.timer_dejeuner_15min,
+        ...(timerRow || {}),
+      };
+
+      return {
+        ...fullRowData,
+        statusAlgo: calculateRowStatus(fullRowData),
       };
     });
 
-    const updatedRows = merged.map(row => ({
-      ...row,
-      remaining_15min: row.timer_15min ? new Date(row.timer_15min).getTime() - Date.now() : null,
-      remaining_2h: row.timer_2h ? new Date(row.timer_2h).getTime() - Date.now() : null,
-      remaining_dej: row.timer_dejeuner_15min ? new Date(row.timer_dejeuner_15min).getTime() - Date.now() : null,
-      isCritical: isRowCritical(row), // Add critical status
-    }));
-
-    setRowsWithTimers(updatedRows);
-    setPermis(permisData); // Keep original for compatibility
+    setRowsWithStatus(merged);
   };
 
   // Realtime subscription
@@ -188,7 +170,7 @@ const ConsignationHome = () => {
       if (cErr) console.error("Erreur fetch consignations:", cErr);
       else setConsignations(groupConsignations(cData));
 
-      // Fetch Permis de Feu with enhanced logic
+      // Fetch Permis de Feu with new logic
       await fetchPermis();
 
       setLoading(false);
@@ -272,7 +254,6 @@ const ConsignationHome = () => {
         ),
       sortable: true,
     },
-    
     {
       name: "Statut",
       selector: (r) => r.status || "non-défini",
@@ -295,7 +276,7 @@ const ConsignationHome = () => {
     },
   ];
 
-  // Updated Permis de Feu columns to match PermisDeFeuList exactly
+  // Permis de Feu columns
   const permisColumns = [
     {
       name: "Heure de début",
@@ -329,19 +310,17 @@ const ConsignationHome = () => {
     },
     {
       name: "Lieu",
-      selector: (row) =>
-        row.zones && row.zones.name ? row.zones.name : "N/A",
+      selector: (row) => row.zones?.name || "N/A",
       sortable: true,
     },
     {
       name: "Nom responsable",
-      selector: (row) =>
-        row.responsables && row.responsables.name ? row.responsables.name : "N/A",
+      selector: (row) => row.responsables?.name || "N/A",
       sortable: true,
     },
     {
       name: "Statut",
-      cell: row => <StatutTimer row={row} />,
+      cell: (row) => <StatutTimer row={row} initialStatus={row.statusAlgo} />,
       sortable: false,
     },
     {
@@ -413,26 +392,42 @@ const ConsignationHome = () => {
     },
   ];
 
-  // Add conditional row styles for Permis de Feu critical rows (from PermisDeFeuList)
+  // Conditional row styles for Permis de Feu
   const permisConditionalRowStyles = [
     {
-      when: row => row.isCritical === true,
+      when: (row) => row.statusAlgo === "attente_form_final",
       style: {
-        backgroundColor: "#ffe5e5",
-        color: "#b00000",
+        backgroundColor: "#fee2e2",
+        color: "#991b1b",
+        "&:hover": { backgroundColor: "#fecaca" },
+      },
+    },
+    {
+      when: (row) => row.statusAlgo === "attente_form_15min",
+      style: {
+        backgroundColor: "#fef3c7",
+        color: "#92400e",
+        "&:hover": { backgroundColor: "#fde68a" },
+      },
+    },
+    {
+      when: (row) => row.statusAlgo === "attente_form_dejeuner",
+      style: {
+        backgroundColor: "#fed7aa",
+        color: "#9a3412",
+        "&:hover": { backgroundColor: "#fdba74" },
       },
     },
   ];
 
   const handleRowClickConsignations = (row) => {
-    console.log(row.status);
-    // If this is a grouped (multiple) record then navigate to the multi details page.
-    if (row.multi_consignation_id && ( row.status === "pending" || row.status === "confirmed" ) ) {
+    if (row.multi_consignation_id && (row.status === "pending" || row.status === "confirmed")) {
       navigate(`/multiconsdetails/${row.multi_consignation_id}`);
     } else {
       navigate(`/consignationdetails/${row.id}`);
     }
-  };  
+  };
+
   const handleRowClickPermis = (r) => navigate(`/permisdefeudetails/${r.id}`);
 
   if (loading) {
@@ -486,7 +481,7 @@ const ConsignationHome = () => {
                 <span className="text-sm text-gray-800">Consigné</span>
               </div>
               <div className="flex items-center">
-                <div className="w-4 h-4 bg-orange-400 rounded-full mr-2 "></div>
+                <div className="w-4 h-4 bg-orange-400 rounded-full mr-2"></div>
                 <span className="text-sm text-gray-800">En attente</span>
               </div>
               <div className="flex items-center">
@@ -513,7 +508,7 @@ const ConsignationHome = () => {
             />
           </div>
 
-          {/* Enhanced Permis de Feu */}
+          {/* Permis de Feu */}
           <div className={`bg-white rounded-lg shadow-lg ${
             isMobile ? 'p-4' : 'p-6'
           }`}>
@@ -550,11 +545,11 @@ const ConsignationHome = () => {
             </div>
             <DataTable
               columns={permisColumns}
-              data={rowsWithTimers} // Use the enhanced data with timers
+              data={rowsWithStatus}
               customStyles={customStyles}
               fixedHeader
               fixedHeaderScrollHeight={isMobile ? "40vh" : "400px"}
-              // conditionalRowStyles={permisConditionalRowStyles} // Use critical row highlighting
+              conditionalRowStyles={permisConditionalRowStyles}
               onRowClicked={handleRowClickPermis}
               highlightOnHover
               pointerOnHover

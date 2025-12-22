@@ -1,3 +1,4 @@
+// pages/PermisDeFeuList.jsx
 import React, { useState, useEffect } from "react";
 import DataTable from "react-data-table-component";
 import { supabase } from "@/features/auth/utils/supabase-client";
@@ -6,20 +7,18 @@ import { LoadingSpinner } from "@/components/loadingspinner";
 import { Link, useNavigate } from "react-router-dom";
 import StatutTimer from "../components/StatutTimer";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { calculateRowStatus } from "../utils/Statuscalculator";
 
 const PermisDeFeuList = () => {
-  const [permis, setPermis] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [rowsWithStatus, setRowsWithStatus] = useState([]);
   const navigate = useNavigate();
   const isMobile = useIsMobile();
 
-  const [rowsWithTimers, setRowsWithTimers] = useState([]);
-
-
-  // Fetch records from the permis_de_feu table, with joins to retrieve "nom responsable" and "zone"
   const fetchPermis = async () => {
     setLoading(true);
-  
+
+    // 1. Fetch Permis de feu
     const { data: permisData, error: permisError } = await supabase
       .from("permis_de_feu")
       .select(`
@@ -29,76 +28,87 @@ const PermisDeFeuList = () => {
       `)
       .not("status", "in", "(planified,archived)")
       .order("created_at", { ascending: false });
-  
+
     if (permisError || !permisData) {
       console.error("Error fetching permis:", permisError);
       setLoading(false);
       return;
     }
-  
-    const { data: timers, error: timerError } = await supabase
-      .from("timer_end")
-      .select("pdf_id, timer_15min, timer_2h, timer_dejeuner_15min, fin_pause");
-  
+
+    // 2. Fetch ALL timer data (timestamps AND boolean fields)
+const { data: timers, error: timerError } = await supabase
+  .from("timer_end")
+  .select("pdf_id, timer_15min, timer_2h, timer_dejeuner_15min, fin_pause, form_15min, form_15min_dejeuner, form_2h");
+
     if (timerError) {
       console.error("Error fetching timers:", timerError);
-      setPermis(permisData);
+      // Continue with permis data even if timers fail
+      const merged = permisData.map((row) => ({
+        ...row,
+        statusAlgo: "en_cours",
+      }));
+      setRowsWithStatus(merged);
       setLoading(false);
       return;
     }
-  
-    // Merge timer timestamps into rows
-    const merged = permisData.map(row => {
-      const timerRow = timers.find(t => t.pdf_id === row.id);
-      return {
-        ...row,
-        timer_15min: timerRow?.timer_15min,
-        timer_2h: timerRow?.timer_2h,
-        timer_dejeuner_15min: timerRow?.timer_dejeuner_15min,
-            fin_pause: timerRow?.fin_pause,
 
+    // 3. Merge data and calculate status IMMEDIATELY (before rendering)
+    const merged = permisData.map((row) => {
+      const timerRow = timers?.find((t) => t.pdf_id === row.id);
+      
+      // Combine all data from both tables
+      const fullRowData = {
+        ...row,
+        // Spread all timer data (timestamps and boolean flags)
+        ...(timerRow || {}),
+      };
+
+      // Calculate status NOW - no waiting for UI
+      const statusAlgo = calculateRowStatus(fullRowData);
+
+      return {
+        ...fullRowData,
+        statusAlgo: statusAlgo,
       };
     });
-  
-    setRowsWithTimers(merged.map(row => ({
-  ...row,
-  remaining_15min: row.timer_15min ? new Date(row.timer_15min).getTime() - Date.now() : null,
-  remaining_2h: row.timer_2h ? new Date(row.timer_2h).getTime() - Date.now() : null,
-  remaining_dej: row.timer_dejeuner_15min ? new Date(row.timer_dejeuner_15min).getTime() - Date.now() : null,
-})));
-    setLoading(false);
+
+    setRowsWithStatus(merged);
+    setLoading(false); // Loading ends when everything is calculated
   };
-  
 
   useEffect(() => {
     fetchPermis();
   }, []);
 
-
-const isRowCritical = (row) => {
-  const t1 = getRemainingStatus(row?.timer_15min);
-  const t2 = getRemainingStatus(row?.timer_2h);
-  const t3 = getRemainingStatus(row?.timer_dejeuner_15min);
-
-  return (
-    (t1 && t1 <= 300000) ||
-    (t2 && t2 <= 300000) ||
-    (t3 && t3 <= 300000)
-  );
-};
-
+  // Highlight rows that need attention
   const conditionalRowStyles = [
     {
-      when: row => row.isCritical === true,
+      when: (row) => row.statusAlgo === "attente_form_final",
       style: {
-        backgroundColor: "#ffe5e5",
-        color: "#b00000",
+        backgroundColor: "#fee2e2",
+        color: "#991b1b",
+        "&:hover": { backgroundColor: "#fecaca" },
+      },
+    },
+    {
+      when: (row) => row.statusAlgo === "attente_form_15min",
+      style: {
+        backgroundColor: "#fef3c7",
+        color: "#92400e",
+        "&:hover": { backgroundColor: "#fde68a" },
+      },
+    },
+    {
+      when: (row) => row.statusAlgo === "attente_form_dejeuner",
+      style: {
+        backgroundColor: "#fed7aa",
+        color: "#9a3412",
+        "&:hover": { backgroundColor: "#fdba74" },
       },
     },
   ];
-  
 
-  // DataTable column definitions:
+  // Table columns
   const columns = [
     {
       name: "Heure de début",
@@ -132,19 +142,17 @@ const isRowCritical = (row) => {
     },
     {
       name: "Lieu",
-      selector: (row) =>
-        row.zones && row.zones.name ? row.zones.name : "N/A",
+      selector: (row) => row.zones?.name || "N/A",
       sortable: true,
     },
     {
       name: "Nom responsable",
-      selector: (row) =>
-        row.responsables && row.responsables.name ? row.responsables.name : "N/A",
+      selector: (row) => row.responsables?.name || "N/A",
       sortable: true,
     },
     {
       name: "Statut",
-      cell: row => <StatutTimer row={row} />,
+      cell: (row) => <StatutTimer row={row} initialStatus={row.statusAlgo} />,
       sortable: false,
     },
     {
@@ -159,6 +167,7 @@ const isRowCritical = (row) => {
     },
   ];
 
+  // Table styling
   const customStyles = {
     headRow: {
       style: {
@@ -174,16 +183,19 @@ const isRowCritical = (row) => {
     rows: {
       style: {
         cursor: "pointer",
-        transition: "background-color 0.3s",
+        transition: "background-color 0.2s ease",
+        "&:active": {
+          backgroundColor: "#fca5a5",
+        },
       },
     },
   };
 
   const handleRowClick = (row) => {
-    // Navigate to detail page if needed
     navigate(`/permisdefeudetails/${row.id}`);
   };
 
+  // Loading state
   if (loading) {
     return (
       <div className="flex justify-center items-center h-screen w-full bg-gray-200">
@@ -199,29 +211,33 @@ const isRowCritical = (row) => {
       {/* Card container */}
       <div className="bg-white rounded-lg shadow-lg w-full max-w-7xl mx-auto p-6">
         <div className="flex flex-col sm:flex-row justify-between items-center mb-6">
-          <h1 className={`font-bold text-gray-800 mb-4 sm:mb-0 ${
-            isMobile ? 'text-xl' : 'text-2xl sm:text-3xl'
-          }`}>
+          <h1
+            className={`font-bold text-gray-800 mb-4 sm:mb-0 ${
+              isMobile ? "text-xl" : "text-2xl sm:text-3xl"
+            }`}
+          >
             Permis de Feu
           </h1>
-          <div className={`flex gap-2 ${
-            isMobile ? 'flex-col w-full' : 'flex-row'
-          }`}>
-            <Link to="/multiconsarch" className={isMobile ? 'w-full' : ''}>
+          <div
+            className={`flex gap-2 ${
+              isMobile ? "flex-col w-full" : "flex-row"
+            }`}
+          >
+            <Link to="/multiconsarch" className={isMobile ? "w-full" : ""}>
               <button
                 type="button"
                 className={`rounded-md bg-gray-700 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-gray-500 active:bg-gray-800 transition-colors ${
-                  isMobile ? 'w-full h-12' : ''
+                  isMobile ? "w-full h-12" : ""
                 }`}
               >
                 Archives
               </button>
             </Link>
-            <Link to="/permisdefeu" className={isMobile ? 'w-full' : ''}>
+            <Link to="/permisdefeu" className={isMobile ? "w-full" : ""}>
               <button
                 type="button"
                 className={`rounded-md bg-green-700 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-green-500 active:bg-green-800 transition-colors ${
-                  isMobile ? 'w-full h-12' : ''
+                  isMobile ? "w-full h-12" : ""
                 }`}
               >
                 Ajouter un permis de feu
@@ -231,19 +247,21 @@ const isRowCritical = (row) => {
         </div>
         <DataTable
           columns={columns}
-          data={rowsWithTimers} // ✅ USE THE DYNAMIC, UPDATED DATA
+          data={rowsWithStatus}
           customStyles={customStyles}
           fixedHeader
           fixedHeaderScrollHeight={isMobile ? "60vh" : "400px"}
           onRowClicked={handleRowClick}
           highlightOnHover
           pointerOnHover
-          conditionalRowStyles={conditionalRowStyles}  // 🔴 Highlight critical rows
+          conditionalRowStyles={conditionalRowStyles}
           responsive={true}
           dense={isMobile}
           pagination={true}
           paginationPerPage={isMobile ? 10 : 20}
-          paginationRowsPerPageOptions={isMobile ? [5, 10, 15] : [10, 20, 30, 50]}
+          paginationRowsPerPageOptions={
+            isMobile ? [5, 10, 15] : [10, 20, 30, 50]
+          }
           noDataComponent={
             <div className="p-6 text-center text-gray-500">
               <div className="text-lg mb-2">📋</div>

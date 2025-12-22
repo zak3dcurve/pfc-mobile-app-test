@@ -4,7 +4,7 @@ import {
   BellIcon, 
   XMarkIcon,
   HomeIcon,
-  ClipboardDocumentListIcon,
+  LockClosedIcon,
   FireIcon,
   CalendarDaysIcon
 } from "@heroicons/react/24/outline";
@@ -18,7 +18,7 @@ function classNames(...classes) {
 
 const navigation = [
   { name: "Accueil", path: "/home", icon: HomeIcon },
-  { name: "Consignation", path: "/consignationlist", icon: ClipboardDocumentListIcon },
+  { name: "Consignation", path: "/consignationlist", icon: LockClosedIcon },
   { name: "Permis de feu", path: "/listpermisdefeu", icon: FireIcon },
   { name: "Planifié", path: "/pdfplanified", icon: CalendarDaysIcon },
 ];

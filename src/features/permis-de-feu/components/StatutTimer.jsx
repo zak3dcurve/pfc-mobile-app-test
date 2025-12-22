@@ -1,84 +1,66 @@
-import React from "react";
+// components/StatutTimer.jsx
+import React, { useState, useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
-import { useTimerStatus } from "../hooks/useCountDown";
 
-const formatMMSS = ms => {
+const formatMMSS = (ms) => {
+  if (ms <= 0) return "00:00";
   const s = Math.floor(ms / 1000) % 60;
   const m = Math.floor(ms / 60000);
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 };
 
-export default function StatutTimer({ row }) {
-  const t15 = useTimerStatus(row.id, "timer_15min", "form_15min");
-  const t2h = useTimerStatus(row.id, "timer_2h", "form_2h");
-  const tdj = useTimerStatus(row.id, "timer_dejeuner_15min", "form_15min_dejeuner");
+export default function StatutTimer({ row, initialStatus }) {
+  const [remaining, setRemaining] = useState(0);
 
-  // Show "Pause" badge ONLY when:
-  // - Lunch form is done (submitted)
-  // - timer_dejeuner_15min exists
-  // - fin_pause is NOT set (pause is ongoing)
-  const isInPause =
-    tdj.formDone &&
-    !!row.timer_dejeuner_15min &&
-    (!row.fin_pause || row.fin_pause === null || row.fin_pause === "");
+  // Détermine quel timestamp utiliser selon le statut
+  const getTargetTime = () => {
+    if (initialStatus === "fin_travaux") return row.timer_15min;
+    if (initialStatus === "form_final_countdown") return row.timer_2h;
+    if (initialStatus === "pause_dej_countdown") return row.timer_dejeuner_15min;
+    return null;
+  };
 
-  // If pause is finished, show "Terminé"
-  if (row.fin_pause) {
-    return <Badge>Terminé</Badge>;
-  }
+  useEffect(() => {
+    const target = getTargetTime();
+    if (!target) return;
 
-  // 1) 15-min timer active and form not submitted
-  if (t15.hasTimer && !t15.formDone && t15.remaining > 0) {
-    return <Badge>Fin Travaux {formatMMSS(t15.remaining)}</Badge>;
-  }
-  // 1b) 15-min expired, waiting for its form
-  if (t15.hasTimer && !t15.formDone && t15.remaining === 0) {
-    return <Badge>En attente du formulaire 15 min</Badge>;
-  }
+    const targetTime = new Date(target).getTime();
+    setRemaining(Math.max(0, targetTime - Date.now()));
 
-  // 2) 2-h timer active and form not submitted
-  if (t15.formDone && t2h.hasTimer && !t2h.formDone && t2h.remaining > 0) {
-    return <Badge>Form final {formatMMSS(t2h.remaining)}</Badge>;
-  }
-  // 2b) 2-h expired, waiting for its form
-  if (t15.formDone && t2h.hasTimer && !t2h.formDone && t2h.remaining === 0) {
-    return <Badge>En attente du formulaire final</Badge>;
-  }
+    const interval = setInterval(() => {
+      const diff = targetTime - Date.now();
+      if (diff <= 0) {
+        setRemaining(0);
+        clearInterval(interval);
+      } else {
+        setRemaining(diff);
+      }
+    }, 1000);
 
-  // 3) Lunch break timer active, form not submitted
-  if (
-    (t15.formDone || !t15.hasTimer) &&
-    (t2h.formDone || !t2h.hasTimer) &&
-    tdj.hasTimer &&
-    !tdj.formDone &&
-    tdj.remaining > 0
-  ) {
-    return <Badge>Pause Déj {formatMMSS(tdj.remaining)}</Badge>;
-  }
-  // 3b) lunch expired, waiting on its form
-  if (
-    (t15.formDone || !t15.hasTimer) &&
-    (t2h.formDone || !t2h.hasTimer) &&
-    tdj.hasTimer &&
-    !tdj.formDone &&
-    tdj.remaining === 0
-  ) {
-    return <Badge>En attente du formulaire déjeuner</Badge>;
-  }
+    return () => clearInterval(interval);
+  }, [initialStatus, row]);
 
-  // 4) PAUSE badge (if lunch form submitted, pause not finished)
-  if (isInPause) {
-    return <Badge>Pause</Badge>;
+  // Rendu des badges selon le statut
+  switch (initialStatus) {
+    case "termine":
+      return <Badge className="bg-gray-500">Terminé</Badge>;
+    case "fin_travaux":
+      return <Badge className="bg-yellow-500">Fin Travaux {formatMMSS(remaining)}</Badge>;
+    case "attente_form_15min":
+      return <Badge className="bg-orange-500">En attente du formulaire 15 min</Badge>;
+    case "form_final_countdown":
+      return <Badge className="bg-blue-500">Form final {formatMMSS(remaining)}</Badge>;
+    case "attente_form_final":
+      return <Badge className="bg-red-500">En attente du formulaire final</Badge>;
+    case "pause_dej_countdown":
+      return <Badge className="bg-purple-500">Pause Déj {formatMMSS(remaining)}</Badge>;
+    case "attente_form_dejeuner":
+      return <Badge className="bg-orange-500">En attente du formulaire déjeuner</Badge>;
+    case "pause":
+      return <Badge className="bg-indigo-500">Pause</Badge>;
+    case "en_cours":
+      return <Badge className="bg-green-500">En cours</Badge>;
+    default:
+      return <Badge variant="outline">Inconnu</Badge>;
   }
-
-  // 5) Default: still running
-  if (
-    (!t15.formDone || !t15.hasTimer) &&
-    (!t2h.formDone || !t2h.hasTimer)
-  ) {
-    return <Badge>En cours</Badge>;
-  }
-
-  // 6) fallback
-  return <Badge>Terminé</Badge>;
 }

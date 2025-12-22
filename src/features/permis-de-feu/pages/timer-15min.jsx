@@ -146,9 +146,46 @@ onCaptureThermal,
 
 {/* ✅ ADD THE PHOTO UPLOADER COMPONENT HERE */}
 
-      <PhotoUploader photos={photos} setPhotos={setPhotos} />
+      {/* On web: show only file chooser. On mobile: show full PhotoUploader */}
+      {Capacitor.getPlatform() === 'web' ? (
+        <div className="border p-2 rounded bg-gray-50 my-3">
+          <strong className="block mb-2">Photos de vérification:</strong>
+          <div className="flex gap-2">
+            <label className="flex-1 bg-blue-500 text-white text-center p-2 rounded cursor-pointer hover:bg-blue-600">
+              <span>Choisir Fichiers</span>
+              <input type="file" multiple accept="image/*" onChange={(e) => {
+                if (e.target.files) {
+                  const fileArray = Array.from(e.target.files).map(file => ({
+                    file: file,
+                    preview: URL.createObjectURL(file)
+                  }));
+                  setPhotos(prevPhotos => [...prevPhotos, ...fileArray]);
+                }
+              }} className="hidden" />
+            </label>
+          </div>
+          {/* Previews */}
+          <div className="grid grid-cols-3 gap-2 mt-3">
+            {photos.map((photo, index) => (
+              <div key={index} className="relative">
+                <img src={photo.preview} alt="preview" className="w-full h-24 object-cover rounded" />
+                <button
+                  type="button"
+                  onClick={() => setPhotos(prevPhotos => prevPhotos.filter((_, i) => i !== index))}
+                  className="absolute top-1 right-1 bg-red-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs"
+                >
+                  X
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <PhotoUploader photos={photos} setPhotos={setPhotos} />
+      )}
 
-      {/* Topdon Thermal Camera Button */}
+      {/* Topdon Thermal Camera Button - Only on mobile */}
+{Capacitor.getPlatform() !== 'web' && (
 <div className="flex flex-col gap-2">
   <button
     type="button"
@@ -169,8 +206,9 @@ onCaptureThermal,
     </div>
   )}
 </div>
+)}
 
-      <button type="submit" className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold px-6 py-3 rounded-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 min-h-[44px]">
+      <button type="submit" className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold px-6 py-3 rounded-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 min-h-[44px]">
 
         Soumettre le Rapport
 
